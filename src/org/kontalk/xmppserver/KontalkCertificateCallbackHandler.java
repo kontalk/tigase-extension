@@ -1,21 +1,26 @@
 package org.kontalk.xmppserver;
 
 import java.io.IOException;
+import java.security.cert.Certificate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.UnsupportedCallbackException;
 
-import tigase.auth.SessionAware;
 import tigase.auth.callbacks.ValidateCertificateData;
+import tigase.auth.impl.CertBasedCallbackHandler;
 import tigase.auth.mechanisms.SaslEXTERNAL;
+import tigase.cert.CertificateEntry;
 import tigase.util.TigaseStringprepException;
-import tigase.xmpp.BareJID;
 import tigase.xmpp.XMPPResourceConnection;
 
-public class KontalkCertificateCallbackHandler implements CallbackHandler, SessionAware {
+
+/**
+ * A callback handler for Kontalk X.509 bridge certificates.
+ * @author Daniele Ricci
+ */
+public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler {
 
     protected Logger log = Logger.getLogger(this.getClass().getName());
 
@@ -24,7 +29,6 @@ public class KontalkCertificateCallbackHandler implements CallbackHandler, Sessi
     @Override
     public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
         try {
-            log.log(Level.INFO, "sessionData: {0}", session.toString());
             for (int i = 0; i < callbacks.length; i++) {
                 if (log.isLoggable(Level.FINEST)) {
                     log.log(Level.FINEST, "Callback: {0}", callbacks[i].getClass().getSimpleName());
@@ -33,31 +37,39 @@ public class KontalkCertificateCallbackHandler implements CallbackHandler, Sessi
                 if (callbacks[i] instanceof ValidateCertificateData) {
                     ValidateCertificateData authCallback = ((ValidateCertificateData) callbacks[i]);
 
-                    final String domain = session.getDomain().getVhost().getDomain();
-                    final BareJID defaultAuthzid = authCallback.getDefaultAuthzid();
-                    if (defaultAuthzid != null && !defaultAuthzid.getDomain().equals(domain)) {
-                        return;
-                    }
-                    final String[] authJIDs = (String[]) session.getSessionData(SaslEXTERNAL.SESSION_AUTH_JIDS_KEY);
+                    CertificateEntry certEntry = (CertificateEntry) session.getSessionData(SaslEXTERNAL.SESSION_AUTH_PEER_CERT);
+                    if (certEntry != null) {
+                        Certificate[] chain = certEntry.getCertChain();
+                        if (chain != null && chain.length > 0) {
+                            // take the last certificate in the chain
+                            // it shouldn't matter since the peer certificate should be just one
+                            Certificate peerCert = chain[chain.length - 1];
 
-                    for (String string : authJIDs) {
-                        if (defaultAuthzid != null) {
-                            if (string.equals(defaultAuthzid.toString())) {
+                            String jid = verifyCertificate(peerCert);
+                            if (jid != null) {
                                 authCallback.setAuthorized(true);
-                                authCallback.setAuthorizedID(string);
+                                authCallback.setAuthorizedID(jid);
+                                return;
                             }
-                        } else if (BareJID.bareJIDInstance(string).getDomain().equals(domain)) {
-                            authCallback.setAuthorized(true);
-                            authCallback.setAuthorizedID(string);
                         }
                     }
-                } else {
+                }
+                else {
                     throw new UnsupportedCallbackException(callbacks[i], "Unrecognized Callback");
                 }
             }
-        } catch (TigaseStringprepException e) {
+
+            // try standard certificate verification
+            super.handle(callbacks);
+        }
+        catch (TigaseStringprepException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private String verifyCertificate(Certificate peerCert) throws TigaseStringprepException {
+        // TODO
+        return null;
     }
 
     @Override

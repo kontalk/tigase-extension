@@ -6,8 +6,10 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.kontalk.xmppserver.pgp.KontalkKeyring;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.x509.SubjectPGPPublicKeyInfo;
+import tigase.auth.DomainAware;
 import tigase.auth.callbacks.ValidateCertificateData;
 import tigase.auth.impl.CertBasedCallbackHandler;
+import tigase.auth.mechanisms.PluginSettingsAware;
 import tigase.auth.mechanisms.SaslEXTERNAL;
 import tigase.cert.CertificateEntry;
 import tigase.cert.CertificateUtil;
@@ -21,6 +23,8 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,11 +33,13 @@ import java.util.logging.Logger;
  * A callback handler for Kontalk X.509 bridge certificates.
  * @author Daniele Ricci
  */
-public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler {
+public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler implements DomainAware, PluginSettingsAware {
 
     protected Logger log = Logger.getLogger(this.getClass().getName());
 
     private XMPPResourceConnection session;
+    private String domain;
+    private Map<String, Object> settings;
 
     @Override
     public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
@@ -127,7 +133,8 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
 
     private String verifyPublicKey(byte[] publicKeyData) {
         // TODO
-        KontalkUser user = KontalkKeyring.getInstance().authenticate(publicKeyData);
+        KontalkKeyring keyring = getKeyring();
+        KontalkUser user = keyring.authenticate(publicKeyData);
         System.out.println(user);
 
         return null;
@@ -139,16 +146,33 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         this.session = session;
     }
 
+    @Override
+    public void setDomain(String domain) {
+        this.domain = domain;
+    }
+
+    @Override
+    public void setPluginSettings(Map<String, Object> settings) {
+        this.settings = settings;
+    }
+
+    private KontalkKeyring getKeyring() {
+        return KontalkKeyring.getInstance(domain, (String) settings.get("fingerprint"));
+    }
+
     // TEST
     public static void main(String[] args) throws Exception {
         java.security.Security.insertProviderAt(new BouncyCastleProvider(), 1);
-        KontalkKeyring.init("prime.kontalk.net", "37D0E678CDD19FB9B182B3804C9539B401F8229C");
 
         String filename = args[0];
         CertificateEntry entry = CertificateUtil.loadCertificate(filename);
         Certificate cert = entry.getCertChain()[0];
 
         KontalkCertificateCallbackHandler c = new KontalkCertificateCallbackHandler();
+        c.setDomain("prime.kontalk.net");
+        Map<String, Object> settings = new HashMap<String, Object>();
+        settings.put("fingerprint", "37D0E678CDD19FB9B182B3804C9539B401F8229C");
+        c.setPluginSettings(settings);
         c.verifyCertificate(cert);
     }
 

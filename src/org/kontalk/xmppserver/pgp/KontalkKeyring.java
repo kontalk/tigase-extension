@@ -23,7 +23,7 @@ public class KontalkKeyring {
     private GnuPGContext ctx;
     private GnuPGKey secretKey;
 
-    /** Use {@link #init(String, String)} and {@link #getInstance()} instead. */
+    /** Use {@link #getInstance(String, String)} instead. */
     public KontalkKeyring(String domain, String fingerprint) {
         this.domain = domain;
         this.fingerprint = fingerprint;
@@ -84,13 +84,13 @@ public class KontalkKeyring {
     }
 
     /** Initializes the keyring. */
-    public static void init(String domain, String fingerprint) {
-        if (instance != null)
-            throw new IllegalArgumentException("keyring already initialized");
-        instance = new KontalkKeyring(domain, fingerprint);
+    public static KontalkKeyring getInstance(String domain, String fingerprint) {
+        if (instance == null)
+            instance = new KontalkKeyring(domain, fingerprint);
+        return instance;
     }
 
-    /** Returns the singleton keyring instance. Need to call {@link #init(String, String)} first! */
+    /** Returns the singleton keyring instance. Need to call {@link #getInstance(String, String)} first! */
     public static KontalkKeyring getInstance() {
         return instance;
     }

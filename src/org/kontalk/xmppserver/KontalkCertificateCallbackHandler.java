@@ -1,11 +1,5 @@
 package org.kontalk.xmppserver;
 
-import com.freiheit.gnupg.GnuPGContext;
-import com.freiheit.gnupg.GnuPGData;
-import org.bouncycastle.asn1.*;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
@@ -22,9 +16,7 @@ import tigase.xmpp.XMPPResourceConnection;
 
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.UnsupportedCallbackException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;

@@ -61,18 +61,14 @@ public class KontalkKeyring {
         JID jid = JID.jidInstanceNS(email);
         if (jid.getDomain().equalsIgnoreCase(domain)) {
             Iterator<GnuPGSignature> signatures = key.getSignatures();
-            while (signatures.hasNext()) {
+            while (signatures != null && signatures.hasNext()) {
                 GnuPGSignature sig = signatures.next();
                 if (sig.isRevoked() || sig.isExpired() || sig.isInvalid())
                     return null;
 
-                GnuPGKey[] skeys = ctx.searchSecretKeys(sig.getKeyID());
-                if (skeys != null && skeys.length > 0) {
-                    for (GnuPGKey skey : skeys) {
-                        if (skey.getFingerprint().equalsIgnoreCase(fingerprint))
-                            return jid;
-                    }
-                }
+                GnuPGKey skey = ctx.getKeyByFingerprint(sig.getKeyID());
+                if (skey != null && skey.getFingerprint().equalsIgnoreCase(fingerprint))
+                    return jid;
             }
 
         }

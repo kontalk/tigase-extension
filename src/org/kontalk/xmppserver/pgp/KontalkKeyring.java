@@ -1,5 +1,7 @@
 package org.kontalk.xmppserver.pgp;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Iterator;
 
 import org.kontalk.xmppserver.KontalkUser;
@@ -38,7 +40,7 @@ public class KontalkKeyring {
      * @param keyData public key data to check
      * @return a user instance with JID and public key fingerprint.
      */
-    public KontalkUser authenticate(byte[] keyData) {
+    public synchronized KontalkUser authenticate(byte[] keyData) {
         GnuPGData data = ctx.createDataObject(keyData);
         String fpr = ctx.importKey(data);
         data.destroy();
@@ -67,14 +69,16 @@ public class KontalkKeyring {
             return true;
         }
 
-        // retrive old user key
-        GnuPGKey oldKey = ctx.getKeyByFingerprint(oldFingerprint);
-        if (oldKey != null && validate(oldKey) != null) {
-            // old key is still valid, check for timestamp
+        synchronized (ctx) {
+            // retrive old user key
+            GnuPGKey oldKey = ctx.getKeyByFingerprint(oldFingerprint);
+            if (oldKey != null && validate(oldKey) != null) {
+                // old key is still valid, check for timestamp
 
-            GnuPGKey newKey = ctx.getKeyByFingerprint(user.getFingerprint());
-            if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
-                return true;
+                GnuPGKey newKey = ctx.getKeyByFingerprint(user.getFingerprint());
+                if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
+                    return true;
+                }
             }
         }
 
@@ -103,6 +107,23 @@ public class KontalkKeyring {
         }
 
         return null;
+    }
+
+    public synchronized byte[] exportKey(String fingerprint) throws IOException {
+        GnuPGData data = ctx.createDataObject();
+        ctx.export(fingerprint, 0, data);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(data.size());
+        try {
+            data.write(baos);
+            return baos.toByteArray();
+        }
+        finally {
+            try {
+                baos.close();
+            }
+            catch (Exception e) {
+            }
+        }
     }
 
     /** Initializes the keyring. */

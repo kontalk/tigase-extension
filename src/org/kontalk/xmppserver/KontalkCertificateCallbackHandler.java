@@ -47,7 +47,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         }
     }
 
-    private static final String DATA_NODE = "kontalk/auth";
+    public static final String DATA_NODE = "kontalk/auth";
 
     protected Logger log = Logger.getLogger(this.getClass().getName());
 

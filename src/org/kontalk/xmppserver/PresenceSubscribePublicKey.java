@@ -1,14 +1,6 @@
 package org.kontalk.xmppserver;
 
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Queue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.kontalk.xmppserver.pgp.KontalkKeyring;
-
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Packet;
@@ -16,13 +8,19 @@ import tigase.server.Presence;
 import tigase.util.Base64;
 import tigase.xml.Element;
 import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.XMPPPacketFilterIfc;
+import tigase.xmpp.XMPPPreprocessorIfc;
 import tigase.xmpp.XMPPProcessor;
 import tigase.xmpp.XMPPResourceConnection;
 import tigase.xmpp.impl.roster.RosterAbstract;
 import tigase.xmpp.impl.roster.RosterAbstract.PresenceType;
 import tigase.xmpp.impl.roster.RosterFactory;
 import tigase.xmpp.impl.roster.RosterFlat;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -31,7 +29,7 @@ import tigase.xmpp.impl.roster.RosterFlat;
  * @author Daniele Ricci
  */
 public class PresenceSubscribePublicKey extends XMPPProcessor implements
-        XMPPPacketFilterIfc {
+        XMPPPreprocessorIfc {
 
     private static final String ID = "presence/urn:xmpp:pubkey:2";
 
@@ -48,28 +46,20 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
     }
 
     @Override
-    public void filter(Packet packet, XMPPResourceConnection session,
-        NonAuthUserRepository repo, Queue<Packet> results) {
-
-        if (session != null && session.isAuthorized() && packet.getElemName() == Presence.ELEM_NAME && results.size() > 0) {
+    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+        if (session != null && session.isAuthorized() && packet.getElemName().equals(Presence.ELEM_NAME)) {
 
             try {
                 PresenceType presenceType = roster_util.getPresenceType(session, packet);
                 if (presenceType == PresenceType.out_subscribe &&
                         !roster_util.isSubscribedFrom(session, packet.getStanzaTo())) {
 
-                    //List<Packet>
-
-                    for (Iterator<Packet> it = results.iterator(); it.hasNext(); ) {
-                        Packet res = it.next();
-
-                        // check if pubkey element was already added
-                        if (!hasPublicKey(res)) {
-                            if (addPublicKey(session, res)) {
-                                res.processedBy(ID);
-                                results.offer(res);
-                            }
-                        }
+                    // check if pubkey element was already added
+                    if (!hasPublicKey(packet)) {
+                        Packet res = addPublicKey(session, packet);
+                        packet.processedBy(ID);
+                        results.offer(res);
+                        return true;
                     }
                 }
             }
@@ -83,13 +73,14 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
         }
 
+        return false;
     }
 
     private boolean hasPublicKey(Packet packet) {
         return packet.getElement().getChild(ELEM_NAME, XMLNS) != null;
     }
 
-    private boolean addPublicKey(XMPPResourceConnection session, Packet packet) throws NotAuthorizedException, TigaseDBException {
+    private Packet addPublicKey(XMPPResourceConnection session, Packet packet) throws NotAuthorizedException, TigaseDBException {
         String fingerprint = session.getData(KontalkCertificateCallbackHandler.DATA_NODE, "fingerprint", null);
 
         if (fingerprint != null) {
@@ -100,9 +91,9 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
                     pubkey.addChild(new Element("key", Base64.encode(keyData)));
                     pubkey.addChild(new Element("print", fingerprint));
 
-                    packet.getElement().addChild(pubkey);
-                    packet.initVars(packet.getStanzaFrom(), packet.getStanzaTo());
-                    return true;
+                    Element presence = packet.getElement().clone();
+                    presence.addChild(pubkey);
+                    return Packet.packetInstance(presence, packet.getStanzaFrom(), packet.getStanzaTo());
                 }
             }
             catch (IOException e) {
@@ -111,7 +102,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
             }
         }
 
-        return false;
+        return null;
     }
 
     /**

@@ -75,10 +75,20 @@ public class SubjectPGPPublicKeyInfo extends ASN1Object {
 
     private static ASN1Primitive toDERObject(byte[] data) throws IOException
     {
-        ByteArrayInputStream inStream = new ByteArrayInputStream(data);
-        ASN1InputStream asnInputStream = new ASN1InputStream(inStream);
+        ASN1InputStream asnInputStream = null;
+        try {
+            ByteArrayInputStream inStream = new ByteArrayInputStream(data);
+            asnInputStream = new ASN1InputStream(inStream);
 
-        return asnInputStream.readObject();
+            return asnInputStream.readObject();
+        }
+        finally {
+            try {
+                asnInputStream.close();
+            }
+            catch (Exception e) {
+            }
+        }
     }
 
 }

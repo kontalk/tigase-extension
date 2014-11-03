@@ -1,16 +1,15 @@
 package org.kontalk.xmppserver.pgp;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import java.io.IOException;
+import java.security.PublicKey;
+import java.util.Iterator;
+
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPObjectFactory;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter;
-
-import java.io.IOException;
-import java.security.PublicKey;
-import java.security.Security;
-import java.util.Iterator;
 
 /**
  * PGP related utilities.
@@ -43,7 +42,7 @@ public class PGPUtils {
     }
 
     public static PGPPublicKeyRing readPublicKeyring(byte[] publicKeyring) throws IOException, PGPException {
-        PGPObjectFactory reader = new PGPObjectFactory(publicKeyring);
+        PGPObjectFactory reader = new PGPObjectFactory(publicKeyring, new BcKeyFingerprintCalculator());
         Object o = reader.nextObject();
         while (o != null) {
             if (o instanceof PGPPublicKeyRing)

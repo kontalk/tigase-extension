@@ -1,13 +1,15 @@
 package org.kontalk.xmppserver.pgp;
 
+import java.util.Iterator;
+
+import org.kontalk.xmppserver.KontalkUser;
+
+import tigase.xmpp.BareJID;
+
 import com.freiheit.gnupg.GnuPGContext;
 import com.freiheit.gnupg.GnuPGData;
 import com.freiheit.gnupg.GnuPGKey;
 import com.freiheit.gnupg.GnuPGSignature;
-import org.kontalk.xmppserver.KontalkUser;
-import tigase.xmpp.JID;
-
-import java.util.Iterator;
 
 
 /**
@@ -39,26 +41,53 @@ public class KontalkKeyring {
     public KontalkUser authenticate(byte[] keyData) {
         GnuPGData data = ctx.createDataObject(keyData);
         String fpr = ctx.importKey(data);
+        data.destroy();
+
         GnuPGKey key = ctx.getKeyByFingerprint(fpr);
 
-        JID jid = validate(key);
+        BareJID jid = validate(key);
 
         if (jid != null) {
-            System.out.println("key validated! " + jid);
-            if (cacheKey(key, jid))
-                return new KontalkUser(jid, key.getFingerprint());
+            return new KontalkUser(jid, key.getFingerprint());
         }
 
         return null;
     }
 
+    /**
+     * Post-authentication step: verifies that the given user is allowed to
+     * login by checking the old key.
+     * @param user user object returned by {@link #authenticate}
+     * @param oldFingerprint old key fingerprint, null if none present
+     * @return true if the new key can be accepted.
+     */
+    public boolean postAuthenticate(KontalkUser user, String oldFingerprint) {
+        if (oldFingerprint == null || oldFingerprint.equalsIgnoreCase(user.getFingerprint())) {
+            // no old fingerprint or same fingerprint -- access granted
+            return true;
+        }
+
+        // retrive old user key
+        GnuPGKey oldKey = ctx.getKeyByFingerprint(oldFingerprint);
+        if (oldKey != null && validate(oldKey) != null) {
+            // old key is still valid, check for timestamp
+
+            GnuPGKey newKey = ctx.getKeyByFingerprint(user.getFingerprint());
+            if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Validates the given key for expiration, revocation and signature by the server. */
-    private JID validate(GnuPGKey key) {
+    private BareJID validate(GnuPGKey key) {
         if (key.isRevoked() || key.isExpired() || key.isInvalid())
             return null;
 
         String email = key.getEmail();
-        JID jid = JID.jidInstanceNS(email);
+        BareJID jid = BareJID.bareJIDInstanceNS(email);
         if (jid.getDomain().equalsIgnoreCase(domain)) {
             Iterator<GnuPGSignature> signatures = key.getSignatures();
             while (signatures != null && signatures.hasNext()) {
@@ -74,13 +103,6 @@ public class KontalkKeyring {
         }
 
         return null;
-    }
-
-    /** Checks for an older key linked to the given user and saves the given one if possible. */
-    private boolean cacheKey(GnuPGKey key, JID jid) {
-        // TODO check for previous key presence and validity (and date)
-        // TODO save new fingerprint to users table
-        return false;
     }
 
     /** Initializes the keyring. */

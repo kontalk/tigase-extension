@@ -1,7 +1,7 @@
 package org.kontalk.xmppserver;
 
 import tigase.util.TigaseStringprepException;
-import tigase.xmpp.JID;
+import tigase.xmpp.BareJID;
 
 /**
  * A Kontalk user.
@@ -9,19 +9,19 @@ import tigase.xmpp.JID;
  */
 public class KontalkUser {
 
-    private JID jid;
+    private BareJID jid;
     private String fingerprint;
 
     public KontalkUser(String jid, String fingerprint) throws TigaseStringprepException {
-        this(JID.jidInstance(jid), fingerprint);
+        this(BareJID.bareJIDInstance(jid), fingerprint);
     }
 
-    public KontalkUser(JID jid, String fingerprint) {
+    public KontalkUser(BareJID jid, String fingerprint) {
         this.jid = jid;
         this.fingerprint = fingerprint;
     }
 
-    public JID getJid() {
+    public BareJID getJID() {
         return jid;
     }
 

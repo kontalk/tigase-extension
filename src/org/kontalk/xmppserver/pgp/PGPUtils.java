@@ -64,4 +64,9 @@ public class PGPUtils {
             sKeyConverter = new JcaPGPKeyConverter().setProvider(org.kontalk.xmppserver.Security.PROVIDER);
     }
 
+    public static PGPUserID parseUserID(PGPPublicKey key) {
+        // TODO
+        return null;
+    }
+
 }

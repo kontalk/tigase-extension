@@ -1,14 +1,22 @@
 package org.kontalk.xmppserver;
 
-import com.google.i18n.phonenumbers.NumberParseException;
-import com.google.i18n.phonenumbers.PhoneNumberUtil;
-import com.google.i18n.phonenumbers.Phonenumber;
+import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Map;
+import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
+import org.kontalk.xmppserver.pgp.KontalkKeyring;
+import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
-import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
@@ -16,14 +24,19 @@ import tigase.server.Packet;
 import tigase.stats.StatisticsList;
 import tigase.util.Base64;
 import tigase.xml.Element;
-import tigase.xmpp.*;
+import tigase.xmpp.Authorization;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.NotAuthorizedException;
+import tigase.xmpp.PacketErrorTypeException;
+import tigase.xmpp.StanzaType;
+import tigase.xmpp.XMPPException;
+import tigase.xmpp.XMPPProcessor;
+import tigase.xmpp.XMPPProcessorIfc;
+import tigase.xmpp.XMPPResourceConnection;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Map;
-import java.util.Queue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import com.google.i18n.phonenumbers.NumberParseException;
+import com.google.i18n.phonenumbers.PhoneNumberUtil;
+import com.google.i18n.phonenumbers.Phonenumber;
 
 
 /**
@@ -42,6 +55,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     // form XPath and xmlns
     private static final String IQ_FORM_ELEM_NAME = "x" ;
     private static final String IQ_FORM_XMLNS = "jabber:x:data";
+    private static final String IQ_FORM_KONTALK_CODE_XMLNS = "http://kontalk.org/protocol/register#code";
 
     // form fields
     private static final String FORM_FIELD_PHONE = "phone";
@@ -60,6 +74,11 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final int VERIFICATION_CODE_LENGTH = 6;
 
     private static final String ERROR_MALFORMED_REQUEST = "Please provide either a phone number or a public key and a verification code.";
+
+    // TODO support for multiple domains
+    private String serverFingerprint;
+
+    private KontalkKeyring keyring;
 
     private long statsRegistrationAttempts;
     private long statsRegisteredUsers;
@@ -120,7 +139,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             Form form = new Form(formElement);
 
                             // phone number
-                            String phone = form.getAsString("phone");
+                            String phone = form.getAsString(FORM_FIELD_PHONE);
                             if (phone != null) {
                                 Packet response = registerPhone(session, packet, phone);
                                 statsRegistrationAttempts++;
@@ -129,15 +148,22 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             }
 
                             // verification code + public key
-                            String code = form.getAsString("code");
-                            String publicKey = form.getAsString("publickey");
+                            String code = form.getAsString(FORM_FIELD_CODE);
+                            String publicKey = form.getAsString(FORM_FIELD_PUBKEY);
                             if (code != null && publicKey != null) {
 
                                 // load public key
-                                BareJID jid = loadPublicKey(Base64.decode(publicKey));
+                                byte[] publicKeyData = Base64.decode(publicKey);
+                                PGPPublicKey key = loadPublicKey(publicKeyData);
+                                // verify user id
+                                BareJID jid = verifyPublicKey(session, key);
 
                                 if (verifyCode(session, jid, code)) {
+                                    byte[] signedKey = signPublicKey(session, publicKeyData);
 
+                                    Packet response = returnRegistered(session, packet, signedKey);
+                                    statsRegisteredUsers++;
+                                    results.offer(response);
                                 }
                             }
 
@@ -167,6 +193,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             log.warning("Database problem: " + e);
             results.offer(Authorization.INTERNAL_SERVER_ERROR.getResponseMessage(packet,
                     "Database access problem, please contact administrator.", true));
+        }
+        // generated from PGP
+        catch (IOException e) {
+            log.warning("Unknown error: " + e);
+            results.offer(Authorization.INTERNAL_SERVER_ERROR.getResponseMessage(packet,
+                    "Internal PGP error. Please contact administrator.", true));
+        }
+        catch (PGPException e) {
+            log.warning("PGP problem: " + e);
+            results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
+                    "Invalid public key.", true));
         }
     }
 
@@ -206,20 +243,36 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         // TODO send SMS to phone number
         if (true) {
-            return packet.okResult(prepareSMSResponseForm(), 0);
+            // TODO sender ID
+            return packet.okResult(prepareSMSResponseForm("TODO"), 0);
         }
         else {
             return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to send SMS.", true);
         }
     }
 
-    private Element prepareSMSResponseForm() {
+    private Element prepareSMSResponseForm(String from) {
         Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
         query.addChild(new Element("instructions", "TODO"));
         Form form = new Form("form", null, null);
 
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
-        form.addField(Field.fieldTextSingle("from", "TODO", "SMS sender"));
+        form.addField(Field.fieldTextSingle("from", from, "SMS sender"));
+
+        query.addChild(form.getElement());
+        return query;
+    }
+
+    private Packet returnRegistered(XMPPResourceConnection session, Packet packet, byte[] publicKey) {
+        return packet.okResult(prepareRegisteredResponseForm(publicKey), 0);
+    }
+
+    private Element prepareRegisteredResponseForm(byte[] publicKey) {
+        Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
+        Form form = new Form("form", null, null);
+
+        form.addField(Field.fieldHidden("FORM_TYPE", IQ_FORM_KONTALK_CODE_XMLNS));
+        form.addField(Field.fieldTextSingle("publickey", Base64.encode(publicKey), "Signed public key"));
 
         query.addChild(form.getElement());
         return query;
@@ -246,13 +299,35 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return code;
     }
 
-    private BareJID loadPublicKey(byte[] publicKeyData) {
-        PGPPublicKey key = PGPUtils.getMasterKey(publicKeyData);
-        return key.getUserIDs().
+    private BareJID parseUserID(PGPPublicKey publicKey) throws PGPException {
+        PGPUserID uid = PGPUtils.parseUserID(publicKey);
+        if (uid == null)
+            throw new PGPException("Invalid user id");
+        return BareJID.bareJIDInstanceNS(uid.getEmail());
+    }
+
+    private PGPPublicKey loadPublicKey(byte[] publicKeyData) throws IOException, PGPException {
+        return PGPUtils.getMasterKey(publicKeyData);
+    }
+
+    private BareJID verifyPublicKey(XMPPResourceConnection session, PGPPublicKey publicKey) throws PGPException {
+        BareJID jid = parseUserID(publicKey);
+        if (!session.getDomainAsJID().toString().equalsIgnoreCase(jid.getDomain()))
+            throw new PGPException("Invalid email identifier");
+
+        // TODO import key into gpg for advanced verification
+
+        return jid;
     }
 
     private boolean verifyCode(XMPPResourceConnection session, BareJID jid, String code) throws TigaseDBException {
         return code.equals(session.getUserRepository().getData(jid, DATA_NODE, KEY_VERIFICATION_CODE));
+    }
+
+    private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) {
+        String domain = session.getDomainAsJID().toString();
+        KontalkKeyring keyring = KontalkKeyring.getInstance(domain, serverFingerprint);
+        return keyring.signKey(publicKeyData);
     }
 
     private String verificationCode() {

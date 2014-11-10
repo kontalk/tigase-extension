@@ -85,7 +85,8 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
         if (fingerprint != null) {
             try {
-                byte[] keyData = KontalkKeyring.getInstance().exportKey(fingerprint);
+                String domain = session.getDomainAsJID().toString();
+                byte[] keyData = KontalkKeyring.getInstance(domain).exportKey(fingerprint);
                 if (keyData != null && keyData.length > 0) {
                     Element pubkey = new Element(ELEM_NAME, new String[] { Packet.XMLNS_ATT }, new String[] { XMLNS });
                     pubkey.addChild(new Element("key", Base64.encode(keyData)));

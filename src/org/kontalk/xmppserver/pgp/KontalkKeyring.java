@@ -3,6 +3,7 @@ package org.kontalk.xmppserver.pgp;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.kontalk.xmppserver.KontalkUser;
 
@@ -20,7 +21,7 @@ import com.freiheit.gnupg.GnuPGSignature;
  */
 public class KontalkKeyring {
 
-    private static KontalkKeyring instance;
+    private static Map<String, KontalkKeyring> instances;
 
     private String domain;
     private String fingerprint;
@@ -126,15 +127,23 @@ public class KontalkKeyring {
         }
     }
 
+    public synchronized byte[] signKey(byte[] keyData) {
+        // TODO
+        return keyData;
+    }
+
     /** Initializes the keyring. */
     public static KontalkKeyring getInstance(String domain, String fingerprint) {
-        if (instance == null)
+        KontalkKeyring instance = instances.get(domain);
+        if (instances.get(domain) == null) {
             instance = new KontalkKeyring(domain, fingerprint);
+            instances.put(domain, instance);
+        }
         return instance;
     }
 
     /** Returns the singleton keyring instance. Need to call {@link #getInstance(String, String)} first! */
-    public static KontalkKeyring getInstance() {
-        return instance;
+    public static KontalkKeyring getInstance(String domain) {
+        return instances.get(domain);
     }
 }

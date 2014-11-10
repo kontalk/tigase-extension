@@ -93,8 +93,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
-        // TODO load parameters
+        serverFingerprint = (String) settings.get("fingerprint");
 
+        // TODO load parameters
         // TEST testing android emu
         Map<String, Object> test = new HashMap<String, Object>();
         test.put("sender", "123456");
@@ -173,6 +174,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
                                     statsRegisteredUsers++;
                                     results.offer(response);
+                                    break;
                                 }
                             }
 
@@ -342,7 +344,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return code.equals(session.getUserRepository().getData(jid, DATA_NODE, KEY_VERIFICATION_CODE));
     }
 
-    private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) {
+    private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {
         String domain = session.getDomainAsJID().toString();
         KontalkKeyring keyring = KontalkKeyring.getInstance(domain, serverFingerprint);
         return keyring.signKey(publicKeyData);

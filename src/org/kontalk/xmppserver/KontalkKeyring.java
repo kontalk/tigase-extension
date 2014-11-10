@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.bouncycastle.openpgp.PGPException;
 import tigase.xmpp.BareJID;
 
 import com.freiheit.gnupg.GnuPGContext;
@@ -32,6 +33,7 @@ public class KontalkKeyring {
         this.domain = domain;
         this.fingerprint = fingerprint;
         this.ctx = new GnuPGContext();
+        this.ctx.setArmor(false);
         this.secretKey = ctx.getKeyByFingerprint(fingerprint);
     }
 
@@ -126,9 +128,34 @@ public class KontalkKeyring {
         }
     }
 
-    public synchronized byte[] signKey(byte[] keyData) {
-        // TODO
-        return keyData;
+    // TODO this needs to be implemented in Java
+    public synchronized byte[] signKey(byte[] keyData) throws IOException, PGPException {
+        GnuPGData data = ctx.createDataObject(keyData);
+        String fpr = ctx.importKey(data);
+        data.destroy();
+
+        if (fpr != null) {
+            GnuPGKey key = ctx.getKeyByFingerprint(fpr);
+            if (key != null) {
+                StringBuilder cmd = new StringBuilder("gpg --yes --batch -u ")
+                        .append(fingerprint)
+                        .append(" --sign-key ")
+                        .append(fpr);
+
+                try {
+                    System.out.println("CMD: <" + cmd + ">");
+                    Runtime.getRuntime().exec(cmd.toString()).waitFor();
+                }
+                catch (InterruptedException e) {
+                    // interrupted
+                    throw new IOException("Interrupted");
+                }
+
+                return exportKey(fpr);
+            }
+        }
+
+        throw new PGPException("Invalid key data");
     }
 
     /** Initializes the keyring. */

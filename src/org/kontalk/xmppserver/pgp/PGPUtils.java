@@ -3,6 +3,8 @@ package org.kontalk.xmppserver.pgp;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Iterator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPObjectFactory;
@@ -19,6 +21,9 @@ public class PGPUtils {
 
     /** Singleton for converting a PGP key to a JCA key. */
     private static JcaPGPKeyConverter sKeyConverter;
+
+    private static final Pattern PATTERN_UID_FULL = Pattern.compile("^(.*) \\((.*)\\) <(.*)>$");
+    private static final Pattern PATTERN_UID_NO_COMMENT = Pattern.compile("^(.*) <(.*)>$");
 
     private PGPUtils() {
     }
@@ -65,7 +70,33 @@ public class PGPUtils {
     }
 
     public static PGPUserID parseUserID(PGPPublicKey key) {
-        // TODO
+        return parseUserID((String) key.getUserIDs().next());
+    }
+
+    public static PGPUserID parseUserID(String uid) {
+        Matcher match;
+
+        match = PATTERN_UID_FULL.matcher(uid);
+        while (match.find()) {
+            if (match.groupCount() >= 3) {
+                String name = match.group(1);
+                String comment = match.group(2);
+                String email = match.group(3);
+                return new PGPUserID(name, comment, email);
+            }
+        }
+
+        // try again without comment
+        match = PATTERN_UID_NO_COMMENT.matcher(uid);
+        while (match.find()) {
+            if (match.groupCount() >= 2) {
+                String name = match.group(1);
+                String email = match.group(2);
+                return new PGPUserID(name, null, email);
+            }
+        }
+
+        // no match found
         return null;
     }
 

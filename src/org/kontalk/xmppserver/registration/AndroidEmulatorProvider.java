@@ -35,12 +35,7 @@ public class AndroidEmulatorProvider extends AbstractSMSVerificationProvider {
             .append(' ')
             .append(code);
 
-        try {
-            Runtime.getRuntime().exec(cmd.toString()).wait();
-        }
-        catch (InterruptedException e) {
-            throw new IOException(e);
-        }
+        Runtime.getRuntime().exec(cmd.toString());
     }
 
 }

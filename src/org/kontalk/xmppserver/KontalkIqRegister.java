@@ -17,6 +17,7 @@ import org.kontalk.xmppserver.pgp.PGPUtils;
 
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
+import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
@@ -77,8 +78,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     // TODO support for multiple domains
     private String serverFingerprint;
-
-    private KontalkKeyring keyring;
 
     private long statsRegistrationAttempts;
     private long statsRegisteredUsers;
@@ -161,7 +160,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 if (verifyCode(session, jid, code)) {
                                     byte[] signedKey = signPublicKey(session, publicKeyData);
 
-                                    Packet response = returnRegistered(session, packet, signedKey);
+                                    Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
                                     statsRegisteredUsers++;
                                     results.offer(response);
                                 }
@@ -263,7 +262,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return query;
     }
 
-    private Packet returnRegistered(XMPPResourceConnection session, Packet packet, byte[] publicKey) {
+    private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
+            throws UserNotFoundException, TigaseDBException {
+        session.getUserRepository().setData(jid,
+            KontalkCertificateCallbackHandler.DATA_NODE,
+            KontalkCertificateCallbackHandler.KEY_FINGERPRINT,
+            Hex.toHexString(fingerprint).toUpperCase());
         return packet.okResult(prepareRegisteredResponseForm(publicKey), 0);
     }
 
@@ -406,6 +410,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     /** Exception thrown when the user has already tried to register recently. */
     private static final class AlreadyRegisteredException extends Exception {
+        private static final long serialVersionUID = 1L;
     }
 
 }

@@ -48,6 +48,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
     }
 
     public static final String DATA_NODE = "kontalk/auth";
+    public static final String KEY_FINGERPRINT = "fingerprint";
 
     protected Logger log = Logger.getLogger(this.getClass().getName());
 
@@ -152,7 +153,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         // retrive any old key fingerprint from storage
         String oldFingerprint = null;
         try {
-            oldFingerprint = getUserData(user.getJID(), "fingerprint", null);
+            oldFingerprint = getUserData(user.getJID(), KEY_FINGERPRINT, null);
         }
         catch (UserNotFoundException e) {
             // user not found - that's ok
@@ -165,7 +166,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         if (keyring.postAuthenticate(user, oldFingerprint)) {
             // store latest fingerprint
             try {
-                setUserData(user.getJID(), "fingerprint", user.getFingerprint());
+                setUserData(user.getJID(), KEY_FINGERPRINT, user.getFingerprint());
             }
             catch (UserNotFoundException e) {
                 log.log(Level.WARNING, "setData: user not found");

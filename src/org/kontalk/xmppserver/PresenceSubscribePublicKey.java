@@ -1,6 +1,5 @@
 package org.kontalk.xmppserver;
 
-import org.kontalk.xmppserver.pgp.KontalkKeyring;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Packet;

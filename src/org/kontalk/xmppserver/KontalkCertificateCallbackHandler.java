@@ -15,7 +15,6 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
-import org.kontalk.xmppserver.pgp.KontalkKeyring;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.x509.SubjectPGPPublicKeyInfo;
 

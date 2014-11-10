@@ -12,7 +12,6 @@ import java.util.logging.Logger;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
-import org.kontalk.xmppserver.pgp.KontalkKeyring;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.registration.AndroidEmulatorProvider;

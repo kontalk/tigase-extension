@@ -1,11 +1,9 @@
-package org.kontalk.xmppserver.pgp;
+package org.kontalk.xmppserver;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-
-import org.kontalk.xmppserver.KontalkUser;
 
 import tigase.xmpp.BareJID;
 

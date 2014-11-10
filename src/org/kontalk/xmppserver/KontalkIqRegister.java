@@ -3,6 +3,7 @@ package org.kontalk.xmppserver;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Level;
@@ -14,6 +15,8 @@ import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.pgp.KontalkKeyring;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.registration.AndroidEmulatorProvider;
+import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
@@ -78,6 +81,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     // TODO support for multiple domains
     private String serverFingerprint;
+    private PhoneNumberVerificationProvider provider;
 
     private long statsRegistrationAttempts;
     private long statsRegisteredUsers;
@@ -91,6 +95,13 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         // TODO load parameters
+
+        // TEST testing android emu
+        Map<String, Object> test = new HashMap<String, Object>();
+        test.put("sender", "123456");
+        test.put("device", "device-5554");
+        provider = new AndroidEmulatorProvider();
+        provider.init(test);
     }
 
     @Override
@@ -240,19 +251,23 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     true);
         }
 
-        // TODO send SMS to phone number
-        if (true) {
-            // TODO sender ID
-            return packet.okResult(prepareSMSResponseForm("TODO"), 0);
+        // send SMS to phone number
+        try {
+            provider.sendVerificationCode(code);
+
+            return packet.okResult(prepareSMSResponseForm(provider.getSenderId()), 0);
         }
-        else {
+        catch (IOException e) {
+            // throttling registrations
+            statsInvalidRegistrations++;
+            log.log(Level.WARNING, "Failed to send verification code for: {0}", jid);
             return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to send SMS.", true);
         }
     }
 
     private Element prepareSMSResponseForm(String from) {
         Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
-        query.addChild(new Element("instructions", "TODO"));
+        query.addChild(new Element("instructions", provider.getAckInstructions()));
         Form form = new Form("form", null, null);
 
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));

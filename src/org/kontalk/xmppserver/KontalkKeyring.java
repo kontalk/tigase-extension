@@ -2,6 +2,7 @@ package org.kontalk.xmppserver;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import com.freiheit.gnupg.GnuPGSignature;
  */
 public class KontalkKeyring {
 
-    private static Map<String, KontalkKeyring> instances;
+    private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
 
     private String domain;
     private String fingerprint;

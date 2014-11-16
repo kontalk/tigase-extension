@@ -279,11 +279,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     }
 
     private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
-            throws UserNotFoundException, TigaseDBException {
+            throws TigaseDBException {
         session.getUserRepository().setData(jid,
             KontalkCertificateCallbackHandler.DATA_NODE,
             KontalkCertificateCallbackHandler.KEY_FINGERPRINT,
             Hex.toHexString(fingerprint).toUpperCase());
+        session.getUserRepository().removeData(jid, DATA_NODE, KEY_VERIFICATION_CODE);
         return packet.okResult(prepareRegisteredResponseForm(publicKey), 0);
     }
 

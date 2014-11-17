@@ -19,7 +19,6 @@ import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
-import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;

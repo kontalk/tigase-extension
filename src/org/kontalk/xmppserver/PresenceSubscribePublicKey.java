@@ -37,7 +37,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
     private static final Logger     log = Logger.getLogger(Presence.class.getName());
 
-    private RosterAbstract roster_util = getRosterUtil();
+    private final RosterAbstract roster_util = getRosterUtil();
 
     @Override
     public String id() {
@@ -115,5 +115,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
     protected RosterAbstract getRosterUtil() {
         return RosterFactory.getRosterImplementation(true);
     }
+
+    // TODO sup methods
 
 }

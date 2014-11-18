@@ -80,7 +80,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
     }
 
     private Packet addPublicKey(XMPPResourceConnection session, Packet packet) throws NotAuthorizedException, TigaseDBException {
-        String fingerprint = session.getData(KontalkCertificateCallbackHandler.DATA_NODE, "fingerprint", null);
+        String fingerprint = KontalkAuth.getUserFingerprint(session);
 
         if (fingerprint != null) {
             try {

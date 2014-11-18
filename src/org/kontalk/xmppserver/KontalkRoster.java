@@ -140,9 +140,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                     packet.processedBy(ID);
                     results.offer(packet.okResult(query, 0));
 
-                    // send presence probes
-                    broadcastProbe(session, results, settings);
-                    // send public keys
+                    // send presence probes and public key requests
+                    broadcastProbe(session, results);
                 }
 
             }
@@ -186,25 +185,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
     }
     */
 
-    /**
-     * <code>sendPresenceBroadcast</code> method broadcasts given presence to all
-     * buddies from roster and to all users to which direct presence was sent.
-     * Before sending presence method calls {@link  requiresPresenceSending()},
-     * configured to only check local environment status (if enabled) to verify
-     * whether presence needs to be sent.
-     *
-     *
-     * @param session  user session which keeps all the user session data and also
-     *                 gives an access to the user's repository data.
-     * @param results  this a collection with packets which have been generated as
-     *                 input packet processing results.
-     * @param settings this map keeps plugin specific settings loaded from the
-     *                 Tigase server configuration.
-     * @exception NotAuthorizedException if an error occurs
-     * @throws TigaseDBException
-     */
-    public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results,
-            Map<String, Object> settings)
+    public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results)
                     throws NotAuthorizedException, TigaseDBException {
         if (log.isLoggable(Level.FINEST)) {
             log.log(Level.FINEST, "Broadcasting probes for: {0}", session);
@@ -220,12 +201,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
         JID[] buddies = roster_util.getBuddies(session, SUB_BOTH);
 
-        try {
-            buddies = DynamicRoster.addBuddies(session, settings, buddies);
-        } catch (RosterRetrievingException | RepositoryAccessException ex) {
-
-            // Ignore, handled in the JabberIqRoster code
-        }
         if (buddies != null) {
             for (JID buddy : buddies) {
                 if (log.isLoggable(Level.FINEST)) {
@@ -239,7 +214,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                 }
                 tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
                 roster_util.setPresenceSent(session, buddy, true);
-                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
 
@@ -251,23 +225,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                     log.log(Level.FINEST, session.getBareJID() + " | Sending probe to: " + buddy);
                 }
                 tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
-                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
-            }    // end of for (String buddy: buddies)
-        }      // end of if (buddies == null)
-
-        // TODO: It might be a marginal number of cases here but just make it clear
-        // we send a presence here regardless
-        JID[] buddies_from = roster_util.getBuddies(session, SUB_FROM);
-
-        if (buddies_from != null) {
-            for (JID buddy : buddies_from) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.log(Level.FINEST, session.getBareJID() +
-                            " | Sending initial presence to: " + buddy);
-                }
-                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
-                roster_util.setPresenceSent(session, buddy, true);
-                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
     }

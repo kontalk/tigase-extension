@@ -46,9 +46,6 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         }
     }
 
-    public static final String DATA_NODE = "kontalk/auth";
-    public static final String KEY_FINGERPRINT = "fingerprint";
-
     protected Logger log = Logger.getLogger(this.getClass().getName());
 
     private XMPPResourceConnection session;
@@ -152,7 +149,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         // retrive any old key fingerprint from storage
         String oldFingerprint = null;
         try {
-            oldFingerprint = getUserData(user.getJID(), KEY_FINGERPRINT, null);
+            oldFingerprint = KontalkAuth.getUserFingerprint(session, user.getJID());
         }
         catch (UserNotFoundException e) {
             // user not found - that's ok
@@ -165,7 +162,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         if (keyring.postAuthenticate(user, oldFingerprint)) {
             // store latest fingerprint
             try {
-                setUserData(user.getJID(), KEY_FINGERPRINT, user.getFingerprint());
+                KontalkAuth.setUserFingerprint(session, user.getJID(), user.getFingerprint());
             }
             catch (UserNotFoundException e) {
                 log.log(Level.WARNING, "setData: user not found");
@@ -178,14 +175,6 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         }
 
         return null;
-    }
-
-    public String getUserData(BareJID jid, String key, String def) throws UserNotFoundException, TigaseDBException {
-        return session.getUserRepository().getData(jid, DATA_NODE, key, def);
-    }
-
-    public void setUserData(BareJID jid, String key, String value) throws UserNotFoundException, TigaseDBException {
-        session.getUserRepository().setData(jid, DATA_NODE, key, value);
     }
 
     @Override

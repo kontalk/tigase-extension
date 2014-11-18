@@ -1,31 +1,29 @@
 package org.kontalk.xmppserver;
 
+import tigase.db.NonAuthUserRepository;
+import tigase.db.TigaseDBException;
+import tigase.server.Iq;
+import tigase.server.Packet;
+import tigase.util.Base64;
+import tigase.xml.Element;
+import tigase.xmpp.*;
+
+import java.io.IOException;
 import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import tigase.db.NonAuthUserRepository;
-import tigase.db.TigaseDBException;
-import tigase.server.Iq;
-import tigase.server.Packet;
-import tigase.util.TigaseStringprepException;
-import tigase.xml.Element;
-import tigase.xmpp.Authorization;
-import tigase.xmpp.JID;
-import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.PacketErrorTypeException;
-import tigase.xmpp.StanzaType;
-import tigase.xmpp.XMPPPreprocessorIfc;
-import tigase.xmpp.XMPPProcessor;
-import tigase.xmpp.XMPPResourceConnection;
-
-public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorIfc {
+public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(PublicKeyPublish.class.getName());
     private static final String XMLNS = "urn:xmpp:pubkey:2";
     private static final String ELEM_NAME = "pubkey";
     public static final String ID = XMLNS;
+
+    private static final String[] IQ_PUBKEY_PATH = {Iq.ELEM_NAME, ELEM_NAME};
+    private static final String[][] ELEMENTS = { IQ_PUBKEY_PATH };
+    private static final String[] XMLNSS = {XMLNS};
 
     @Override
     public String id() {
@@ -33,7 +31,7 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorI
     }
 
     @Override
-    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+    public void process(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws XMPPException {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Processing packet: " + packet.toString());
         }
@@ -41,13 +39,13 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorI
             if (log.isLoggable( Level.FINE)) {
                 log.log( Level.FINE, "Session is null, ignoring packet: {0}", packet );
             }
-            return false;
+            return;
         }
         if (!session.isAuthorized()) {
             if ( log.isLoggable( Level.FINE ) ){
                 log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
             }
-            return false;
+            return;
         }
 
         try {
@@ -55,16 +53,35 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorI
                 // RFC says: ignore such request
                 log.log( Level.WARNING, "Public key request ''from'' attribute doesn't match "
                     + "session: {0}, request: {1}", new Object[] { session, packet } );
-                return false;
+                return;
             }
 
             StanzaType type = packet.getType();
-            String xmlns = packet.getElement().getXMLNSStaticStr( Iq.IQ_QUERY_PATH );
+            String xmlns = packet.getElement().getXMLNSStaticStr(IQ_PUBKEY_PATH);
 
             if (xmlns == XMLNS && type == StanzaType.get) {
+                Element pubkey = null;
 
-                // TODO retrieve fingerprint from repository and send key data
+                // retrieve fingerprint from repository and send key data
+                String fingerprint = KontalkAuth.getUserFingerprint(session, packet.getStanzaTo().getBareJID());
+                if (fingerprint != null) {
+                    try {
+                        byte[] publicKeyData = KontalkKeyring.
+                                getInstance(session.getDomainAsJID().toString()).exportKey(fingerprint);
+                        if (publicKeyData != null) {
+                            pubkey = new Element("pubkey");
+                            pubkey.setXMLNS(XMLNS);
+                            pubkey.setCData(Base64.encode(publicKeyData));
+                        }
+                    }
+                    catch (IOException e) {
+                        log.log(Level.WARNING, "Unable to export key for user {0} (fingerprint: {1})",
+                                new Object[] { packet.getStanzaTo(), fingerprint });
+                    }
+                }
 
+                packet.processedBy(ID);
+                results.offer(packet.okResult(pubkey, 0));
             }
 
         }
@@ -88,22 +105,12 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorI
                 // ignored
             }
         }
-        catch (TigaseStringprepException e) {
-            log.log(Level.WARNING, "Invalid JID string", e);
-            try {
-                results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Invalid JID string", false));
-            }
-            catch (PacketErrorTypeException pe) {
-                // ignored
-            }
-        }
-
-        return false;
     }
 
     public static Packet requestPublicKey(JID from, JID to, Queue<Packet> results) {
         Element req = new Element(Iq.ELEM_NAME);
-        req.setAttribute("from", from.toString());
+        req.setAttribute(Packet.ID_ATT, String.valueOf(System.currentTimeMillis()));
+        req.setAttribute(Packet.TYPE_ATT, StanzaType.get.toString());
         req.setXMLNS(CLIENT_XMLNS);
 
         Element pubkey = new Element(ELEM_NAME);
@@ -113,6 +120,16 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPPreprocessorI
         Packet packet = Packet.packetInstance(req, from, to);
         results.offer(packet);
         return packet;
+    }
+
+    @Override
+    public String[][] supElementNamePaths() {
+        return ELEMENTS;
+    }
+
+    @Override
+    public String[] supNamespaces() {
+        return XMLNSS;
     }
 
 }

@@ -27,7 +27,6 @@ import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.PacketErrorTypeException;
 import tigase.xmpp.StanzaType;
 import tigase.xmpp.XMPPException;
-import tigase.xmpp.XMPPImplIfc;
 import tigase.xmpp.XMPPProcessor;
 import tigase.xmpp.XMPPProcessorIfc;
 import tigase.xmpp.XMPPResourceConnection;
@@ -82,7 +81,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
             }
             return;
         }
-
 
         try {
             if ((packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
@@ -144,6 +142,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
                     // send presence probes
                     broadcastProbe(session, results, settings);
+                    // send public keys
                 }
 
             }
@@ -215,7 +214,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
         Element presInit  = session.getPresence();
         Element presProbe = new Element(Presence.ELEM_NAME);
 
-        presProbe.setXMLNS(XMPPImplIfc.CLIENT_XMLNS);
+        presProbe.setXMLNS(CLIENT_XMLNS);
         presProbe.setAttribute("type", StanzaType.probe.toString());
         presProbe.setAttribute("from", session.getBareJID().toString());
 
@@ -240,6 +239,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                 }
                 tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
                 roster_util.setPresenceSent(session, buddy, true);
+                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
 
@@ -251,6 +251,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                     log.log(Level.FINEST, session.getBareJID() + " | Sending probe to: " + buddy);
                 }
                 tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
+                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
 
@@ -266,6 +267,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                 }
                 tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
                 roster_util.setPresenceSent(session, buddy, true);
+                PublicKeyPublish.requestPublicKey(session.getJID(), buddy, results);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
     }

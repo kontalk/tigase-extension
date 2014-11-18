@@ -1,12 +1,15 @@
 package org.kontalk.xmppserver;
 
 
+import static tigase.xmpp.impl.roster.RosterAbstract.SUB_BOTH;
+import static tigase.xmpp.impl.roster.RosterAbstract.SUB_FROM;
+import static tigase.xmpp.impl.roster.RosterAbstract.SUB_TO;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -14,19 +17,26 @@ import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
 import tigase.server.Packet;
+import tigase.server.Presence;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.Authorization;
 import tigase.xmpp.BareJID;
+import tigase.xmpp.JID;
 import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.PacketErrorTypeException;
 import tigase.xmpp.StanzaType;
-import tigase.xmpp.XMPPPreprocessorIfc;
+import tigase.xmpp.XMPPException;
+import tigase.xmpp.XMPPImplIfc;
 import tigase.xmpp.XMPPProcessor;
+import tigase.xmpp.XMPPProcessorIfc;
 import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.impl.roster.DynamicRoster;
+import tigase.xmpp.impl.roster.RepositoryAccessException;
 import tigase.xmpp.impl.roster.RosterAbstract;
 import tigase.xmpp.impl.roster.RosterFactory;
 import tigase.xmpp.impl.roster.RosterFlat;
+import tigase.xmpp.impl.roster.RosterRetrievingException;
 
 
 /**
@@ -35,7 +45,7 @@ import tigase.xmpp.impl.roster.RosterFlat;
  * If a roster request contains items, the packet will be processed by this plugin and then filtered.
  * @author Daniele Ricci
  */
-public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc {
+public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/roster";
@@ -56,7 +66,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc 
     }
 
     @Override
-    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+    public void process(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws XMPPException {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Processing packet: " + packet.toString());
         }
@@ -64,13 +74,13 @@ public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc 
             if (log.isLoggable( Level.FINE)) {
                 log.log( Level.FINE, "Session is null, ignoring packet: {0}", packet );
             }
-            return false;
+            return;
         }
         if (!session.isAuthorized()) {
             if ( log.isLoggable( Level.FINE ) ){
                 log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
             }
-            return false;
+            return;
         }
 
 
@@ -79,7 +89,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc 
                 // RFC says: ignore such request
                 log.log( Level.WARNING, "Roster request ''from'' attribute doesn't match "
                     + "session: {0}, request: {1}", new Object[] { session, packet } );
-                return false;
+                return;
             }
 
             StanzaType type = packet.getType();
@@ -130,8 +140,10 @@ public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc 
                     }
 
                     packet.processedBy(ID);
-                    results.offer(packet.okResult(query, 1));
-                    return true;
+                    results.offer(packet.okResult(query, 0));
+
+                    // send presence probes
+                    broadcastProbe(session, results, settings);
                 }
 
             }
@@ -166,13 +178,96 @@ public class KontalkRoster extends XMPPProcessor implements XMPPPreprocessorIfc 
                 // ignored
             }
         }
-
-        return false;
     }
 
+    /*
     private Future<Boolean> remoteLookup(BareJID jid) {
         // TODO
         return null;
+    }
+    */
+
+    /**
+     * <code>sendPresenceBroadcast</code> method broadcasts given presence to all
+     * buddies from roster and to all users to which direct presence was sent.
+     * Before sending presence method calls {@link  requiresPresenceSending()},
+     * configured to only check local environment status (if enabled) to verify
+     * whether presence needs to be sent.
+     *
+     *
+     * @param session  user session which keeps all the user session data and also
+     *                 gives an access to the user's repository data.
+     * @param results  this a collection with packets which have been generated as
+     *                 input packet processing results.
+     * @param settings this map keeps plugin specific settings loaded from the
+     *                 Tigase server configuration.
+     * @exception NotAuthorizedException if an error occurs
+     * @throws TigaseDBException
+     */
+    public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results,
+            Map<String, Object> settings)
+                    throws NotAuthorizedException, TigaseDBException {
+        if (log.isLoggable(Level.FINEST)) {
+            log.log(Level.FINEST, "Broadcasting probes for: {0}", session);
+        }
+
+        // Probe is always broadcasted with initial presence
+        Element presInit  = session.getPresence();
+        Element presProbe = new Element(Presence.ELEM_NAME);
+
+        presProbe.setXMLNS(XMPPImplIfc.CLIENT_XMLNS);
+        presProbe.setAttribute("type", StanzaType.probe.toString());
+        presProbe.setAttribute("from", session.getBareJID().toString());
+
+        JID[] buddies = roster_util.getBuddies(session, SUB_BOTH);
+
+        try {
+            buddies = DynamicRoster.addBuddies(session, settings, buddies);
+        } catch (RosterRetrievingException | RepositoryAccessException ex) {
+
+            // Ignore, handled in the JabberIqRoster code
+        }
+        if (buddies != null) {
+            for (JID buddy : buddies) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, session.getBareJID() +
+                            " | Sending presence probe to: " + buddy);
+                }
+                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, session.getBareJID() +
+                            " | Sending intial presence to: " + buddy);
+                }
+                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
+                roster_util.setPresenceSent(session, buddy, true);
+            }    // end of for (String buddy: buddies)
+        }      // end of if (buddies == null)
+
+        JID[] buddies_to = roster_util.getBuddies(session, SUB_TO);
+
+        if (buddies_to != null) {
+            for (JID buddy : buddies_to) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, session.getBareJID() + " | Sending probe to: " + buddy);
+                }
+                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
+            }    // end of for (String buddy: buddies)
+        }      // end of if (buddies == null)
+
+        // TODO: It might be a marginal number of cases here but just make it clear
+        // we send a presence here regardless
+        JID[] buddies_from = roster_util.getBuddies(session, SUB_FROM);
+
+        if (buddies_from != null) {
+            for (JID buddy : buddies_from) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, session.getBareJID() +
+                            " | Sending initial presence to: " + buddy);
+                }
+                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
+                roster_util.setPresenceSent(session, buddy, true);
+            }    // end of for (String buddy: buddies)
+        }      // end of if (buddies == null)
     }
 
     @Override

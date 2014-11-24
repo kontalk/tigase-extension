@@ -28,7 +28,6 @@ import tigase.cert.CertificateUtil;
 import tigase.db.TigaseDBException;
 import tigase.db.UserNotFoundException;
 import tigase.util.TigaseStringprepException;
-import tigase.xmpp.BareJID;
 import tigase.xmpp.XMPPResourceConnection;
 
 

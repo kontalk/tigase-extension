@@ -2,7 +2,6 @@ package org.kontalk.xmppserver;
 
 
 import static tigase.xmpp.impl.roster.RosterAbstract.SUB_BOTH;
-import static tigase.xmpp.impl.roster.RosterAbstract.SUB_FROM;
 import static tigase.xmpp.impl.roster.RosterAbstract.SUB_TO;
 
 import java.util.HashSet;
@@ -30,12 +29,9 @@ import tigase.xmpp.XMPPException;
 import tigase.xmpp.XMPPProcessor;
 import tigase.xmpp.XMPPProcessorIfc;
 import tigase.xmpp.XMPPResourceConnection;
-import tigase.xmpp.impl.roster.DynamicRoster;
-import tigase.xmpp.impl.roster.RepositoryAccessException;
 import tigase.xmpp.impl.roster.RosterAbstract;
 import tigase.xmpp.impl.roster.RosterFactory;
 import tigase.xmpp.impl.roster.RosterFlat;
-import tigase.xmpp.impl.roster.RosterRetrievingException;
 
 
 /**

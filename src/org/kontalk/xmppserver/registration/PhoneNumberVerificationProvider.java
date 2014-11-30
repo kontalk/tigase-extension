@@ -16,6 +16,6 @@ public interface PhoneNumberVerificationProvider {
 
     public String getAckInstructions();
 
-    public void sendVerificationCode(String code) throws IOException;
+    public void sendVerificationCode(String phoneNumber, String code) throws IOException;
 
 }

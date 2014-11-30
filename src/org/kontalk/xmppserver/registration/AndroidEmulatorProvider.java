@@ -27,7 +27,7 @@ public class AndroidEmulatorProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public void sendVerificationCode(String code) throws IOException {
+    public void sendVerificationCode(String phoneNumber, String code) throws IOException {
         StringBuilder cmd = new StringBuilder("adb -s ")
             .append(deviceId)
             .append(" emu sms send ")

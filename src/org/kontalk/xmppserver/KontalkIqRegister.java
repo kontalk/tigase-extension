@@ -49,7 +49,7 @@ import com.google.i18n.phonenumbers.Phonenumber;
 public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static final String[][] ELEMENTS = {Iq.IQ_QUERY_PATH};
-    public static final String ID = "kontalk/jabber:iq:register";
+    public static final String ID = "kontalk:jabber:iq:register";
 
     private static Logger log = Logger.getLogger(KontalkIqRegister.class.getName());
     private static final String[] XMLNSS = {"jabber:iq:register"};
@@ -94,13 +94,22 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     public void init(Map<String, Object> settings) throws TigaseDBException {
         serverFingerprint = (String) settings.get("fingerprint");
 
-        // TODO load parameters
-        // TEST testing android emu
-        Map<String, Object> test = new HashMap<String, Object>();
-        test.put("sender", "123456");
-        test.put("device", "device-5554");
-        provider = new AndroidEmulatorProvider();
-        provider.init(test);
+        String providerClassName = (String) settings.get("provider");
+        try {
+            Class<? extends PhoneNumberVerificationProvider> providerClass =
+                    (Class<? extends PhoneNumberVerificationProvider>) Class.forName(providerClassName);
+            provider = providerClass.newInstance();
+            provider.init(settings);
+        }
+        catch (ClassNotFoundException e) {
+            throw new TigaseDBException("Provider class not found: " + providerClassName);
+        }
+        catch (InstantiationException e) {
+            throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
+        }
+        catch (IllegalAccessException e) {
+            throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
+        }
     }
 
     @Override
@@ -253,7 +262,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         // send SMS to phone number
         try {
-            provider.sendVerificationCode(code);
+            provider.sendVerificationCode(phone, code);
 
             return packet.okResult(prepareSMSResponseForm(provider.getSenderId()), 0);
         }

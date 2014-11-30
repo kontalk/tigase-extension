@@ -30,7 +30,7 @@ import java.util.logging.Logger;
 public class PresenceSubscribePublicKey extends XMPPProcessor implements
         XMPPPreprocessorIfc {
 
-    private static final String ID = "presence/urn:xmpp:pubkey:2";
+    private static final String ID = "presence:urn:xmpp:pubkey:2";
 
     private static final String ELEM_NAME = "pubkey";
     private static final String XMLNS = "urn:xmpp:pubkey:2";

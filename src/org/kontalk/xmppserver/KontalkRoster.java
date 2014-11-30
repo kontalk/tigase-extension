@@ -44,7 +44,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/roster";
-    public static final String ID = "kontalk/" + RosterAbstract.XMLNS;
+    public static final String ID = "kontalk:" + RosterAbstract.XMLNS;
 
     private static final String[][] ELEMENTS = {Iq.IQ_QUERY_PATH};
     private static final String[] XMLNSS = {XMLNS};

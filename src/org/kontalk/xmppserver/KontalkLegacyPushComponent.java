@@ -22,7 +22,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     private static final String NODE = "http://kontalk.org/extensions/presence#push";
     private static final String XMLNS = NODE;
     private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
-    private static final List<Element> DISCO_FEATURES = Arrays.asList(new Element[] { top_feature });
+    private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
     public static final String GCM_PROVIDER_NAME = "gcm";
     private static final String GCM_JID_PREFIX = "gcm.push.";

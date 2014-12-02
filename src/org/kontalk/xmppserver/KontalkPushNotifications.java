@@ -5,6 +5,8 @@ import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.kontalk.xmppserver.push.GCMProvider;
+
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Message;
@@ -66,7 +68,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
 
                 Element element = packet.getElement();
                 Element cap = element.getChild("c", XMLNS);
-                if (cap != null && KontalkLegacyPushComponent.GCM_PROVIDER_NAME.equals(cap.getAttributeStaticStr("provider"))) {
+                if (cap != null && GCMProvider.PROVIDER_NAME.equals(cap.getAttributeStaticStr("provider"))) {
                     String regId = cap.getCData();
                     if (regId != null && regId.length() > 0) {
                         // create registration request
@@ -76,7 +78,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
                         request.addChild(new Element("register",
                                 regId,
                                 new String[]{"xmlns", "provider"},
-                                new String[]{XMLNS, KontalkLegacyPushComponent.GCM_PROVIDER_NAME}));
+                                new String[]{XMLNS, GCMProvider.PROVIDER_NAME}));
 
                         // send regId to push component
                         JID compJid = JID.jidInstanceNS(componentName, session.getDomainAsJID().getDomain(), null);

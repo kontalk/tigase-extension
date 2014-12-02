@@ -21,5 +21,7 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="lib/gcm-server.jar" sourcepath="/home/daniele/repository/android/android-sdk/extras/google/gcm/gcm-server/dist/gcm-server-src.jar"/>
+	<classpathentry kind="lib" path="lib/nexmo-sdk.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

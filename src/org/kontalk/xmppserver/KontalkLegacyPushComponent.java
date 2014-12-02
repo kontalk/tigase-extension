@@ -1,14 +1,25 @@
 package org.kontalk.xmppserver;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import tigase.conf.ConfigurationException;
 import tigase.server.AbstractMessageReceiver;
 import tigase.server.Iq;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.xml.Element;
+import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
 
-import java.util.*;
+import com.google.android.gcm.server.Result;
+import com.google.android.gcm.server.Sender;
 
 
 /**
@@ -18,19 +29,27 @@ import java.util.*;
  */
 public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
+    private static Logger log = Logger.getLogger(KontalkLegacyPushComponent.class.getName());
+
     private static final String DISCO_DESCRIPTION = "Legacy Kontalk push notifications";
     private static final String NODE = "http://kontalk.org/extensions/presence#push";
     private static final String XMLNS = NODE;
     private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
     private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
+    private static final int NUM_THREADS = 20;
+
     public static final String GCM_PROVIDER_NAME = "gcm";
     private static final String GCM_JID_PREFIX = "gcm.push.";
     private static final String GCM_DESCRIPTION = "Google Cloud Messaging push notifications";
+    private static final String GCM_DATA_ACTION = "org.kontalk.CHECK_MESSAGES";
+    private static final int GCM_MAX_RETRIES = 3;
 
     private String gcmProjectId;
     private String gcmApiKey;
+    private Sender gcmSender;
 
+    // in-memory storage, but we don't mind since this class should go away soon
     private Map<String, String> storage = new HashMap<String, String>(100);
 
     @Override
@@ -53,13 +72,48 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                 if (push != null) {
                     String jid = push.getAttributeStaticStr("jid");
                     if (jid != null && jid.length() > 0) {
-                        System.out.println("sending notification to " + jid);
-                        // TODO send push notification
+                        try {
+                            // send push notification
+                            sendPushNotification(BareJID.jidToBareJID(jid));
+                        }
+                        catch (IOException e) {
+                            log.log(Level.INFO, "GCM connection error", e);
+                        }
                     }
                 }
 
             }
 
+        }
+    }
+
+    @Override
+    public int processingInThreads() {
+        return NUM_THREADS;
+    }
+
+    private void sendPushNotification(String jid) throws IOException {
+        String regId = storage.get(jid);
+        if (regId != null) {
+            com.google.android.gcm.server.Message msg = new com.google.android.gcm.server.Message.Builder()
+                .collapseKey("new")
+                .addData("action", GCM_DATA_ACTION)
+                .build();
+            Result result = gcmSender.send(msg, regId, GCM_MAX_RETRIES);
+            if (result.getMessageId() != null) {
+                log.log(Level.FINE, "GCM message sent: {0}", result.getMessageId());
+                String newId = result.getCanonicalRegistrationId();
+                if (newId != null) {
+                    // update registration id
+                    storage.put(jid, newId);
+                }
+            }
+            else {
+                log.log(Level.INFO, "GCM error: {0}", result.getErrorCodeName());
+            }
+        }
+        else {
+            log.log(Level.INFO, "No registration ID found for {0}", jid);
         }
     }
 
@@ -76,6 +130,8 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
         gcmProjectId = (String) props.get("gcm-projectid");
         gcmApiKey = (String) props.get("gcm-apikey");
+
+        gcmSender = new Sender(gcmApiKey);
     }
 
     @Override

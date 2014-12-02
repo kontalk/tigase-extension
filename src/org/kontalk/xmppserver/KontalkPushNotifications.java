@@ -1,24 +1,21 @@
 package org.kontalk.xmppserver;
 
-
-import tigase.db.NonAuthUserRepository;
-import tigase.db.TigaseDBException;
-import tigase.server.Iq;
-import tigase.server.Message;
-import tigase.server.Packet;
-import tigase.server.Presence;
-import tigase.util.TigaseStringprepException;
-import tigase.xml.Element;
-import tigase.xmpp.*;
-import tigase.xmpp.impl.roster.RosterAbstract;
-import tigase.xmpp.impl.roster.RosterFactory;
-
-import java.util.*;
+import java.util.Map;
+import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static tigase.xmpp.impl.roster.RosterAbstract.SUB_BOTH;
-import static tigase.xmpp.impl.roster.RosterAbstract.SUB_TO;
+import tigase.db.NonAuthUserRepository;
+import tigase.db.TigaseDBException;
+import tigase.server.Message;
+import tigase.server.Packet;
+import tigase.server.Presence;
+import tigase.xml.Element;
+import tigase.xmpp.JID;
+import tigase.xmpp.NotAuthorizedException;
+import tigase.xmpp.XMPPPostprocessorIfc;
+import tigase.xmpp.XMPPProcessor;
+import tigase.xmpp.XMPPResourceConnection;
 
 
 /**

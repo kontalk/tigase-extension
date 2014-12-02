@@ -3,7 +3,6 @@ package org.kontalk.xmppserver;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Level;
@@ -14,7 +13,6 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
-import org.kontalk.xmppserver.registration.AndroidEmulatorProvider;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import tigase.db.NonAuthUserRepository;
@@ -96,6 +94,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         String providerClassName = (String) settings.get("provider");
         try {
+            @SuppressWarnings("unchecked")
             Class<? extends PhoneNumberVerificationProvider> providerClass =
                     (Class<? extends PhoneNumberVerificationProvider>) Class.forName(providerClassName);
             provider = providerClass.newInstance();

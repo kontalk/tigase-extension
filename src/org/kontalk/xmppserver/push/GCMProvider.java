@@ -38,7 +38,8 @@ public class GCMProvider implements PushProvider {
         gcmProjectId = (String) props.get("gcm-projectid");
         gcmApiKey = (String) props.get("gcm-apikey");
 
-        gcmSender = new Sender(gcmApiKey);
+        if (gcmApiKey != null)
+            gcmSender = new Sender(gcmApiKey);
     }
 
     @Override
@@ -47,7 +48,7 @@ public class GCMProvider implements PushProvider {
     }
 
     public String getNode() {
-        return gcmProjectId;
+        return gcmProjectId != null ? gcmProjectId : "unconfigured";
     }
 
     public String getJidPrefix() {
@@ -65,6 +66,11 @@ public class GCMProvider implements PushProvider {
 
     @Override
     public void sendPushNotification(BareJID jid) throws IOException {
+        if (gcmSender == null) {
+            log.log(Level.WARNING, "GCM provider not configured correctly.");
+            return;
+        }
+
         String jidString = jid.toString();
         String regId = storage.get(jidString);
         if (regId != null) {

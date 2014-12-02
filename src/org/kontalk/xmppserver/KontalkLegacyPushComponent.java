@@ -38,7 +38,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
     private static final int NUM_THREADS = 20;
 
-    private PushProvider provider;
+    private PushProvider provider = new GCMProvider();
 
     @Override
     public void processPacket(Packet packet) {
@@ -90,8 +90,6 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     @Override
     public void setProperties(Map<String, Object> props) throws ConfigurationException {
         super.setProperties(props);
-
-        provider = new GCMProvider();
         provider.init(props);
     }
 

@@ -1,7 +1,6 @@
 package org.kontalk.xmppserver;
 
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,6 +31,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
     private static final String[] XMLNSS = {XMLNS, Message.CLIENT_XMLNS};
 
     private String componentName;
+    private Set<String> pushedMessages = Collections.synchronizedSet(new HashSet<String>());
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
@@ -49,6 +49,14 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
         if (session == null && packet.getElemName().equals(Message.ELEM_NAME) &&
             packet.getType() == StanzaType.chat && packet.getElement().getChild("body") != null) {
 
+            String stanzaId = packet.getStanzaId();
+
+            if (pushedMessages.contains(stanzaId)) {
+                // prevent a loop
+                pushedMessages.remove(stanzaId);
+                return;
+            }
+
             // create registration request
             Element request = new Element("message");
             request.setAttribute("type", "push");
@@ -63,6 +71,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
             Packet p = Packet.packetInstance(request, fromJid, compJid);
             results.offer(p);
 
+            pushedMessages.add(stanzaId);
             // queue the message again
             results.offer(packet);
         }

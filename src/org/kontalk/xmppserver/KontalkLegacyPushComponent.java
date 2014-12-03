@@ -51,6 +51,8 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                     BareJID user = packet.getStanzaFrom().getBareJID();
                     log.log(Level.FINE, "Registering user {0} to push notifications", user);
                     provider.register(user, regId);
+                    packet.processedBy(getComponentInfo().getName());
+                    addOutPacket(packet.okResult((String) null, 0));
                 }
             }
         }

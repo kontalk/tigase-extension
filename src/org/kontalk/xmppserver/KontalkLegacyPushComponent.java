@@ -42,16 +42,20 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
     @Override
     public void processPacket(Packet packet) {
+        // registration
         if (packet.getElemName().equals(Iq.ELEM_NAME)) {
             Element register = packet.getElement().getChild("register", XMLNS);
             if (register != null && provider.getName().equals(register.getAttributeStaticStr("provider"))) {
                 String regId = register.getCData();
                 if (regId != null && regId.length() > 0) {
-                    provider.register(packet.getStanzaFrom().getBareJID(), regId);
+                    BareJID user = packet.getStanzaFrom().getBareJID();
+                    log.log(Level.FINE, "Registering user {0} to push notifications", user);
+                    provider.register(user, regId);
                 }
             }
         }
 
+        // push notification
         else if (packet.getElemName().equals(Message.ELEM_NAME)) {
             if ("push".equals(packet.getAttributeStaticStr("type")) && packet
                     .getStanzaFrom().toString().equals(getDefVHostItem().getDomain())) {
@@ -61,6 +65,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                     String jid = push.getAttributeStaticStr("jid");
                     if (jid != null && jid.length() > 0) {
                         try {
+                            log.log(Level.FINE, "Sending push notification to {0}", jid);
                             // send push notification
                             provider.sendPushNotification(BareJID.bareJIDInstanceNS(jid));
                         }

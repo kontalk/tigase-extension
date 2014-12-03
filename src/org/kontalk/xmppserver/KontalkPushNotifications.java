@@ -5,16 +5,12 @@ import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.kontalk.xmppserver.push.GCMProvider;
-
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Message;
 import tigase.server.Packet;
-import tigase.server.Presence;
 import tigase.xml.Element;
 import tigase.xmpp.JID;
-import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.XMPPPostprocessorIfc;
 import tigase.xmpp.XMPPProcessor;
 import tigase.xmpp.XMPPResourceConnection;
@@ -31,8 +27,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
     public static final String XMLNS = "http://kontalk.org/extensions/presence#push";
     public static final String ID = "kontalk:push:legacy";
 
-    private static final String[] PRESENCE_CAPS_PATH = { Presence.ELEM_NAME, "c" };
-    private static final String[][] ELEMENTS = { PRESENCE_CAPS_PATH, { Message.ELEM_NAME } };
+    private static final String[][] ELEMENTS = { { Message.ELEM_NAME } };
     private static final String[] XMLNSS = {XMLNS, Message.CLIENT_XMLNS};
 
     private String componentName;
@@ -50,64 +45,20 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
             log.finest("Processing packet: " + packet.toString());
         }
 
-        if (packet.getElemName().equals(Presence.ELEM_NAME)) {
-            if (session == null) {
-                if (log.isLoggable( Level.FINE)) {
-                    log.log( Level.FINE, "Session is null, ignoring packet: {0}", packet );
-                }
-                return;
-            }
-            if (!session.isAuthorized()) {
-                if ( log.isLoggable( Level.FINE ) ){
-                    log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
-                }
-                return;
-            }
+        if (packet.getElemName().equals(Message.ELEM_NAME) && session == null) {
+            // create registration request
+            Element request = new Element("message");
+            request.setAttribute("type", "push");
 
-            try {
+            request.addChild(new Element("push",
+                    new String[]{"xmlns", "jid"},
+                    new String[]{XMLNS, packet.getStanzaTo().getBareJID().toString()}));
 
-                Element element = packet.getElement();
-                Element cap = element.getChild("c", XMLNS);
-                if (cap != null && GCMProvider.PROVIDER_NAME.equals(cap.getAttributeStaticStr("provider"))) {
-                    String regId = cap.getCData();
-                    if (regId != null && regId.length() > 0) {
-                        // create registration request
-                        Element request = new Element("iq");
-                        request.setAttribute("type", "set");
-
-                        request.addChild(new Element("register",
-                                regId,
-                                new String[]{"xmlns", "provider"},
-                                new String[]{XMLNS, GCMProvider.PROVIDER_NAME}));
-
-                        // send regId to push component
-                        JID compJid = JID.jidInstanceNS(componentName, session.getDomainAsJID().getDomain(), null);
-                        Packet p = Packet.packetInstance(request, session.getJID(), compJid);
-                        results.offer(p);
-                    }
-                }
-            } catch (NotAuthorizedException e) {
-                // TODO
-                log.log(Level.WARNING, "Not authorized.");
-            }
-        }
-
-        else if (packet.getElemName().equals(Message.ELEM_NAME)) {
-            if (session == null) {
-                // create registration request
-                Element request = new Element("message");
-                request.setAttribute("type", "push");
-
-                request.addChild(new Element("push",
-                        new String[]{"xmlns", "jid"},
-                        new String[]{XMLNS, packet.getStanzaTo().getBareJID().toString()}));
-
-                // send regId to push component
-                JID compJid = JID.jidInstanceNS(componentName, packet.getStanzaTo().getDomain(), null);
-                JID fromJid = JID.jidInstanceNS(packet.getStanzaTo().getDomain());
-                Packet p = Packet.packetInstance(request, fromJid, compJid);
-                results.offer(p);
-            }
+            // send regId to push component
+            JID compJid = JID.jidInstanceNS(componentName, packet.getStanzaTo().getDomain(), null);
+            JID fromJid = JID.jidInstanceNS(packet.getStanzaTo().getDomain());
+            Packet p = Packet.packetInstance(request, fromJid, compJid);
+            results.offer(p);
         }
     }
 

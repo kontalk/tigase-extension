@@ -57,6 +57,8 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPProce
             JID fromJid = JID.jidInstanceNS(packet.getStanzaTo().getDomain());
             Packet p = Packet.packetInstance(request, fromJid, compJid);
             results.offer(p);
+
+            packet.processedBy(ID);
         }
     }
 

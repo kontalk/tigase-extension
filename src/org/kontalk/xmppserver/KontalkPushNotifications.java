@@ -62,6 +62,9 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
             JID fromJid = JID.jidInstanceNS(packet.getStanzaTo().getDomain());
             Packet p = Packet.packetInstance(request, fromJid, compJid);
             results.offer(p);
+
+            // queue the message again
+            results.offer(packet);
         }
     }
 

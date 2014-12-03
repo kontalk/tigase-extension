@@ -9,11 +9,7 @@ import tigase.db.TigaseDBException;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.xml.Element;
-import tigase.xmpp.JID;
-import tigase.xmpp.StanzaType;
-import tigase.xmpp.XMPPPostprocessorIfc;
-import tigase.xmpp.XMPPProcessor;
-import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.*;
 
 
 /**
@@ -21,7 +17,7 @@ import tigase.xmpp.XMPPResourceConnection;
  * Support for GCM only. The hard-coded stuff.
  * @author Daniele Ricci
  */
-public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostprocessorIfc {
+public class KontalkPushNotifications extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkPushNotifications.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/presence#push";
@@ -31,7 +27,6 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
     private static final String[] XMLNSS = {XMLNS, Message.CLIENT_XMLNS};
 
     private String componentName;
-    private Set<String> pushedMessages = Collections.synchronizedSet(new HashSet<String>());
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
@@ -41,21 +36,13 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
     }
 
     @Override
-    public void postProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+    public void process(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws XMPPException {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Processing packet: " + packet.toString());
         }
 
         if (session == null && packet.getElemName().equals(Message.ELEM_NAME) &&
             packet.getType() == StanzaType.chat && packet.getElement().getChild("body") != null) {
-
-            String stanzaId = packet.getStanzaId();
-
-            if (pushedMessages.contains(stanzaId)) {
-                // prevent a loop
-                pushedMessages.remove(stanzaId);
-                return;
-            }
 
             // create registration request
             Element request = new Element("message");
@@ -70,10 +57,6 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
             JID fromJid = JID.jidInstanceNS(packet.getStanzaTo().getDomain());
             Packet p = Packet.packetInstance(request, fromJid, compJid);
             results.offer(p);
-
-            pushedMessages.add(stanzaId);
-            // queue the message again
-            results.offer(packet);
         }
     }
 

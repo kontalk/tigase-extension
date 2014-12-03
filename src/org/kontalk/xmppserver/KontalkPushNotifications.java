@@ -11,6 +11,7 @@ import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.JID;
+import tigase.xmpp.StanzaType;
 import tigase.xmpp.XMPPPostprocessorIfc;
 import tigase.xmpp.XMPPProcessor;
 import tigase.xmpp.XMPPResourceConnection;
@@ -45,7 +46,9 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
             log.finest("Processing packet: " + packet.toString());
         }
 
-        if (packet.getElemName().equals(Message.ELEM_NAME) && session == null) {
+        if (session == null && packet.getElemName().equals(Message.ELEM_NAME) &&
+            packet.getType() == StanzaType.chat && packet.getElement().getChild("body") != null) {
+
             // create registration request
             Element request = new Element("message");
             request.setAttribute("type", "push");

@@ -1,6 +1,8 @@
 package org.kontalk.xmppserver;
 
-import java.util.*;
+import java.util.Date;
+import java.util.Map;
+import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -11,9 +13,11 @@ import tigase.db.UserNotFoundException;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.xml.Element;
-import tigase.xml.SimpleParser;
-import tigase.xml.SingletonFactory;
-import tigase.xmpp.*;
+import tigase.xmpp.JID;
+import tigase.xmpp.StanzaType;
+import tigase.xmpp.XMPPPostprocessorIfc;
+import tigase.xmpp.XMPPProcessor;
+import tigase.xmpp.XMPPResourceConnection;
 import tigase.xmpp.impl.OfflineMessages;
 
 

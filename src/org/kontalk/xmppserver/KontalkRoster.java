@@ -4,6 +4,7 @@ package org.kontalk.xmppserver;
 import static tigase.xmpp.impl.roster.RosterAbstract.SUB_BOTH;
 import static tigase.xmpp.impl.roster.RosterAbstract.SUB_TO;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.kontalk.xmppserver.probe.ProbeEngine;
 
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
@@ -52,6 +55,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
     private static final Element[] FEATURES = { new Element("roster", new String[] { "xmlns" }, new String[] { XMLNS }) };
 
     private final RosterAbstract roster_util = getRosterUtil();
+    private final ProbeEngine probeEngine = new ProbeEngine();
 
     private String networkDomain;
 
@@ -79,6 +83,9 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
         }
 
         try {
+            // TODO this should accept also remote stanzas so with only domain name as JID, not only by local clients
+
+
             if ((packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
                 // RFC says: ignore such request
                 log.log( Level.WARNING, "Roster request ''from'' attribute doesn't match "
@@ -96,6 +103,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                     String serverDomain = session.getDomainAsJID().getDomain();
 
                     Set<BareJID> found = new HashSet<BareJID>();
+                    Set<BareJID> remote = new HashSet<BareJID>();
                     for (Element item : items) {
 
                         BareJID jid = BareJID.bareJIDInstance(item.getAttributeStaticStr("jid"));
@@ -113,8 +121,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                             found.add(jid);
                         }
                         else if (isNetworkJid) {
-                            // TODO remote lookup
-                            // remoteLookup(jid);
+                            // queue for remote lookup
+                            remote.add(jid);
                         }
 
                         else {
@@ -124,20 +132,31 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
                     }
 
-                    Element query = new Element("query");
-                    query.setXMLNS(XMLNS);
-
-                    for (BareJID jid : found) {
-                        Element item = new Element("item");
-                        item.setAttribute("jid", jid.toString());
-                        query.addChild(item);
+                    if (remote.size() > 0) {
+                        // process remote entries
+                        remoteLookup(session, remote, results, found);
                     }
 
-                    packet.processedBy(ID);
-                    results.offer(packet.okResult(query, 0));
+                    else {
+                        // local results only
+                        // return result immediately
+                        Element query = new Element("query");
+                        query.setXMLNS(XMLNS);
 
-                    // send presence probes and public key requests
-                    broadcastProbe(session, results);
+                        for (BareJID jid : found) {
+                            Element item = new Element("item");
+                            item.setAttribute("jid", jid.toString());
+                            query.addChild(item);
+                        }
+
+                        results.offer(packet.okResult(query, 0));
+
+                        // send presence probes
+                        broadcastProbe(session, results);
+                    }
+
+                    // packet was processed successfully
+                    packet.processedBy(ID);
                 }
 
             }
@@ -174,12 +193,16 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
         }
     }
 
-    /*
-    private Future<Boolean> remoteLookup(BareJID jid) {
-        // TODO
-        return null;
+    /**
+     * Requests a remote lookup to the network.
+     * @param session the current session
+     * @param jidList list of JIDs to lookup
+     * @param results the packet queue
+     * @param localJidList list of already found local JIDs
+     */
+    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> localJidList) {
+        probeEngine.broadcastLookup(session.getDomainAsJID(), jidList, results, localJidList);
     }
-    */
 
     public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results)
                     throws NotAuthorizedException, TigaseDBException {

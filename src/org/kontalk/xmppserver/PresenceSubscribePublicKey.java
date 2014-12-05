@@ -56,9 +56,11 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
                     // check if pubkey element was already added
                     if (!hasPublicKey(packet)) {
                         Packet res = addPublicKey(session, packet);
-                        packet.processedBy(ID);
-                        results.offer(res);
-                        return true;
+                        if (res != null) {
+                            packet.processedBy(ID);
+                            results.offer(res);
+                            return true;
+                        }
                     }
                 }
             }
@@ -91,9 +93,10 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
                     pubkey.addChild(new Element("key", Base64.encode(keyData)));
                     pubkey.addChild(new Element("print", fingerprint));
 
-                    Element presence = packet.getElement().clone();
-                    presence.addChild(pubkey);
-                    return Packet.packetInstance(presence, packet.getStanzaFrom(), packet.getStanzaTo());
+                    Packet result = packet.copyElementOnly();
+                    result.getElement().addChild(pubkey);
+                    result.initVars(packet.getStanzaFrom(), packet.getStanzaTo());
+                    return result;
                 }
             }
             catch (IOException e) {

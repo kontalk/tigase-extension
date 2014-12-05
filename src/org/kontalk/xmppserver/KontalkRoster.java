@@ -83,7 +83,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
         }
 
         try {
-            // TODO this should accept also remote stanzas so with only domain name as JID, not only by local clients
+            // TODO we should accept also remote stanzas with only a domain name as JID (remote iq results)
+            // this should be probably done through a preprocessor to block the packet (it's for internal processing only)
 
 
             if ((packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
@@ -200,8 +201,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
      * @param results the packet queue
      * @param localJidList list of already found local JIDs
      */
-    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> localJidList) {
-        probeEngine.broadcastLookup(session.getDomainAsJID(), jidList, results, localJidList);
+    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
+        probeEngine.broadcastLookup(session.getJID(), jidList, results, localJidList);
     }
 
     public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results)

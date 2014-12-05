@@ -25,12 +25,12 @@ public class ProbeEngine {
 
     /**
      * Broadcasts a lookup to the network.
-     * @param localServer JID of local server (used in the from attribute)
+     * @param user JID of local user (used in the from attribute)
      * @param jidList list of JIDs to lookup
      * @param results the packet queue
      * @param storage will be used to store matched JIDs
      */
-    public void broadcastLookup(JID localServer, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> storage) {
+    public void broadcastLookup(JID user, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> storage) {
         // TODO send to all servers
         {
             String server = "beta.kontalk.net";
@@ -39,7 +39,7 @@ public class ProbeEngine {
             // build roster match packet
             String reqId = "test-random";
             Packet roster = Packet.packetInstance(buildRosterMatch(jidList, reqId, server),
-                localServer, serverJid);
+                user, serverJid);
             // send it to remote server
             results.offer(roster);
 

@@ -227,12 +227,12 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                     log.log(Level.FINEST, session.getBareJID() +
                             " | Sending presence probe to: " + buddy);
                 }
-                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
+                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presProbe);
                 if (log.isLoggable(Level.FINEST)) {
                     log.log(Level.FINEST, session.getBareJID() +
                             " | Sending intial presence to: " + buddy);
                 }
-                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presInit);
+                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presInit);
                 roster_util.setPresenceSent(session, buddy, true);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
@@ -244,7 +244,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                 if (log.isLoggable(Level.FINEST)) {
                     log.log(Level.FINEST, session.getBareJID() + " | Sending probe to: " + buddy);
                 }
-                tigase.xmpp.impl.Presence.sendPresence(null, null, buddy, results, presProbe);
+                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presProbe);
             }    // end of for (String buddy: buddies)
         }      // end of if (buddies == null)
     }

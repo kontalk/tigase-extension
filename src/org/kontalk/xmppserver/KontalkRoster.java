@@ -1,40 +1,19 @@
 package org.kontalk.xmppserver;
 
 
-import static tigase.xmpp.impl.roster.RosterAbstract.SUB_BOTH;
-import static tigase.xmpp.impl.roster.RosterAbstract.SUB_TO;
-
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.kontalk.xmppserver.probe.ProbeEngine;
-
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
 import tigase.server.Packet;
-import tigase.server.Presence;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
-import tigase.xmpp.Authorization;
-import tigase.xmpp.BareJID;
-import tigase.xmpp.JID;
-import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.PacketErrorTypeException;
-import tigase.xmpp.StanzaType;
-import tigase.xmpp.XMPPException;
-import tigase.xmpp.XMPPProcessor;
-import tigase.xmpp.XMPPProcessorIfc;
-import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
-import tigase.xmpp.impl.roster.RosterFactory;
-import tigase.xmpp.impl.roster.RosterFlat;
+
+import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -54,7 +33,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static final Element[] FEATURES = { new Element("roster", new String[] { "xmlns" }, new String[] { XMLNS }) };
 
-    private final RosterAbstract roster_util = getRosterUtil();
     private final ProbeEngine probeEngine = new ProbeEngine();
 
     private String networkDomain;
@@ -151,9 +129,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                         }
 
                         results.offer(packet.okResult(query, 0));
-
-                        // send presence probes
-                        broadcastProbe(session, results);
                     }
 
                     // packet was processed successfully
@@ -205,50 +180,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
         probeEngine.broadcastLookup(session.getJID(), jidList, results, localJidList);
     }
 
-    public void broadcastProbe(XMPPResourceConnection session, Queue<Packet> results)
-                    throws NotAuthorizedException, TigaseDBException {
-        if (log.isLoggable(Level.FINEST)) {
-            log.log(Level.FINEST, "Broadcasting probes for: {0}", session);
-        }
-
-        // Probe is always broadcasted with initial presence
-        Element presInit  = session.getPresence();
-        Element presProbe = new Element(Presence.ELEM_NAME);
-
-        presProbe.setXMLNS(CLIENT_XMLNS);
-        presProbe.setAttribute("type", StanzaType.probe.toString());
-        presProbe.setAttribute("from", session.getBareJID().toString());
-
-        JID[] buddies = roster_util.getBuddies(session, SUB_BOTH);
-
-        if (buddies != null) {
-            for (JID buddy : buddies) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.log(Level.FINEST, session.getBareJID() +
-                            " | Sending presence probe to: " + buddy);
-                }
-                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presProbe);
-                if (log.isLoggable(Level.FINEST)) {
-                    log.log(Level.FINEST, session.getBareJID() +
-                            " | Sending intial presence to: " + buddy);
-                }
-                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presInit);
-                roster_util.setPresenceSent(session, buddy, true);
-            }    // end of for (String buddy: buddies)
-        }      // end of if (buddies == null)
-
-        JID[] buddies_to = roster_util.getBuddies(session, SUB_TO);
-
-        if (buddies_to != null) {
-            for (JID buddy : buddies_to) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.log(Level.FINEST, session.getBareJID() + " | Sending probe to: " + buddy);
-                }
-                tigase.xmpp.impl.Presence.sendPresence(null, session.getJID(), buddy, results, presProbe);
-            }    // end of for (String buddy: buddies)
-        }      // end of if (buddies == null)
-    }
-
     @Override
     public String id() {
         return ID;
@@ -276,17 +207,5 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
             return null;
         }
     }
-
-    /**
-     * Returns shared instance of class implementing {@link RosterAbstract} -
-     * either default one ({@link RosterFlat}) or the one configured with
-     * <em>"roster-implementation"</em> property.
-     *
-     * @return shared instance of class implementing {@link RosterAbstract}
-     */
-    protected RosterAbstract getRosterUtil() {
-        return RosterFactory.getRosterImplementation(true);
-    }
-
 
 }

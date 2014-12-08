@@ -22,7 +22,7 @@ import java.util.logging.Logger;
  * If a roster request contains items, the packet will be processed by this plugin and then filtered.
  * @author Daniele Ricci
  */
-public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
+public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XMPPPreprocessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/roster";
@@ -40,6 +40,18 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         networkDomain = (String) settings.get("network-domain");
+    }
+
+    @Override
+    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
+        StanzaType type = packet.getType();
+        String xmlns = packet.getElement().getXMLNSStaticStr( Iq.IQ_QUERY_PATH );
+
+        if (xmlns == XMLNS && type == StanzaType.result) {
+            return probeEngine.handleResult(packet, session, results);
+        }
+
+        return false;
     }
 
     @Override

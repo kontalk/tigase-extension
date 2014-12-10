@@ -2,6 +2,7 @@ package org.kontalk.xmppserver;
 
 
 import org.kontalk.xmppserver.probe.ProbeEngine;
+
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
@@ -47,8 +48,13 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
         StanzaType type = packet.getType();
         String xmlns = packet.getElement().getXMLNSStaticStr( Iq.IQ_QUERY_PATH );
 
-        if (xmlns == XMLNS && type == StanzaType.result) {
-            return probeEngine.handleResult(packet, session, results);
+        if (xmlns == XMLNS) {
+            if (type == StanzaType.result) {
+                return probeEngine.handleResult(packet, session, results);
+            }
+            else if (type == StanzaType.error) {
+                return probeEngine.handleError(packet, session, results);
+            }
         }
 
         return false;
@@ -65,7 +71,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
             }
             return;
         }
-        if (!session.isAuthorized()) {
+        if ((packet.getStanzaFrom() != null && session.isUserId(packet.getStanzaFrom().getBareJID())) && !session.isAuthorized()) {
             if ( log.isLoggable( Level.FINE ) ){
                 log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
             }
@@ -73,11 +79,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
         }
 
         try {
-            // TODO we should accept also remote stanzas with only a domain name as JID (remote iq results)
-            // this should be probably done through a preprocessor to block the packet (it's for internal processing only)
-
-
-            if ((packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
+            if (!session.isServerSession() && (packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
                 // RFC says: ignore such request
                 log.log( Level.WARNING, "Roster request ''from'' attribute doesn't match "
                     + "session: {0}, request: {1}", new Object[] { session, packet } );
@@ -125,7 +127,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
 
                     if (remote.size() > 0) {
                         // process remote entries
-                        remoteLookup(session, remote, results, found);
+                        remoteLookup(session, remote, packet.getStanzaId(), results, found);
                     }
 
                     else {
@@ -188,8 +190,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
      * @param results the packet queue
      * @param localJidList list of already found local JIDs
      */
-    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
-        probeEngine.broadcastLookup(session.getJID(), jidList, results, localJidList);
+    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
+        probeEngine.broadcastLookup(session.getJID(), jidList, requestId, results, localJidList);
     }
 
     @Override
@@ -205,6 +207,11 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
     @Override
     public String[] supNamespaces() {
         return XMLNSS;
+    }
+
+    @Override
+    public Set<StanzaType> supTypes() {
+        return new HashSet<StanzaType>(Arrays.asList(StanzaType.get));
     }
 
     @Override

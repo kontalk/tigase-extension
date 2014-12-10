@@ -29,25 +29,24 @@ public class ProbeEngine {
      * @param results the packet queue
      * @param storage will be used to store matched JIDs
      */
-    public void broadcastLookup(JID user, Collection<BareJID> jidList, Queue<Packet> results, Set<BareJID> storage) {
+    public void broadcastLookup(JID user, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> storage) {
         // TODO send to all servers
         {
             String server = "beta.kontalk.net";
             JID serverJid = JID.jidInstanceNS(server);
 
             // build roster match packet
-            String reqId = "test-random";
-            Packet roster = Packet.packetInstance(buildRosterMatch(jidList, reqId, server),
+            Packet roster = Packet.packetInstance(buildRosterMatch(jidList, requestId, server),
                 user, serverJid);
             // send it to remote server
             results.offer(roster);
 
             ProbeInfo info = new ProbeInfo();
-            info.id = reqId;
+            info.id = requestId;
             info.sender = user;
             info.storage = storage;
             info.maxReplies = 1;
-            probes.put(reqId, info);
+            probes.put(requestId, info);
         }
     }
 
@@ -86,6 +85,15 @@ public class ProbeEngine {
         }
 
         return false;
+    }
+
+    /**
+     * Handles an error of a remote lookup (i.e. a roster match iq error).
+     * @param packet the packet
+     * @return true if the packet was handled
+     */
+    public boolean handleError(Packet packet, XMPPResourceConnection session, Queue<Packet> results) {
+        return handleResult(packet, session, results);
     }
 
     private void sendResult(ProbeInfo info, Queue<Packet> results) {

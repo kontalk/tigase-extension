@@ -59,7 +59,6 @@ public class ProbeEngine {
 
     /**
      * Handles the result of a remote lookup (i.e. a roster match iq result).
-     * @param packet the packet
      * @return true if the packet was handled
      */
     public boolean handleResult(Packet packet, XMPPResourceConnection session, Queue<Packet> results) {
@@ -70,12 +69,15 @@ public class ProbeEngine {
             if (info != null) {
                 info.numReplies++;
 
-                List<Element> items = packet.getElemChildrenStaticStr(Iq.IQ_QUERY_PATH);
-                if (items != null) {
-                    // add all matched items to the storage
-                    for (Element item : items) {
-                        BareJID jid = BareJID.bareJIDInstanceNS(item.getAttributeStaticStr("jid"));
-                        info.storage.add(jid);
+                // only result stanzas contain valid items
+                if (packet.getType() == StanzaType.result) {
+                    List<Element> items = packet.getElemChildrenStaticStr(Iq.IQ_QUERY_PATH);
+                    if (items != null) {
+                        // add all matched items to the storage
+                        for (Element item : items) {
+                            BareJID jid = BareJID.bareJIDInstanceNS(item.getAttributeStaticStr("jid"));
+                            info.storage.add(jid);
+                        }
                     }
                 }
 

@@ -13,10 +13,10 @@ import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 
 /**
- * Validation code repository backed by a {@link DataRepository}.
+ * Verification code repository backed by a {@link DataRepository}.
  * @author Daniele Ricci
  */
-public class DataValidationRepository extends AbstractVerificationRepository {
+public class DataVerificationRepository extends AbstractVerificationRepository {
 
     private static final String CREATE_QUERY_ID = "create-query";
     private static final String CREATE_QUERY_SQL = "INSERT INTO validations VALUES (?, ?, SYSDATE())";
@@ -29,7 +29,7 @@ public class DataValidationRepository extends AbstractVerificationRepository {
 
     private DataRepository repo;
 
-    public DataValidationRepository(String dbUri) throws ClassNotFoundException,
+    public DataVerificationRepository(String dbUri) throws ClassNotFoundException,
             DBInitException, InstantiationException, SQLException, IllegalAccessException {
         repo = RepositoryFactory.getDataRepository(null, dbUri, null);
         repo.initPreparedStatement(CREATE_QUERY_ID, CREATE_QUERY_SQL);

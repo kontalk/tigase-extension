@@ -1,6 +1,7 @@
 package org.kontalk.xmppserver;
 
 
+import org.kontalk.xmppserver.probe.DataServerlistRepository;
 import org.kontalk.xmppserver.probe.ProbeEngine;
 
 import tigase.db.NonAuthUserRepository;
@@ -12,6 +13,7 @@ import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
 
+import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,13 +36,31 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
 
     private static final Element[] FEATURES = { new Element("roster", new String[] { "xmlns" }, new String[] { XMLNS }) };
 
-    private final ProbeEngine probeEngine = new ProbeEngine();
+    private ProbeEngine probeEngine;
 
     private String networkDomain;
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         networkDomain = (String) settings.get("network-domain");
+
+        // database parameters for probe engine
+        String dbUri = (String) settings.get("db-uri");
+        try {
+            probeEngine = new ProbeEngine(new DataServerlistRepository(dbUri));
+        }
+        catch (ClassNotFoundException e) {
+            throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
+        }
+        catch (InstantiationException e) {
+            throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException("SQL exception (uri=" + dbUri + ")", e);
+        }
+        catch (IllegalAccessException e) {
+            throw new TigaseDBException("Unknown error (uri=" + dbUri + ")", e);
+        }
     }
 
     @Override

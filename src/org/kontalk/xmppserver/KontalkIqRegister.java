@@ -14,7 +14,7 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
-import org.kontalk.xmppserver.registration.DataValidationRepository;
+import org.kontalk.xmppserver.registration.DataVerificationRepository;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import org.kontalk.xmppserver.registration.VerificationRepository;
@@ -94,7 +94,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         // database parameters
         String dbUri = (String) settings.get("db-uri");
         try {
-            repo = new DataValidationRepository(dbUri);
+            repo = new DataVerificationRepository(dbUri);
         }
         catch (ClassNotFoundException e) {
             throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
@@ -212,7 +212,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                         // bad request
                         results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_MALFORMED_REQUEST, true));
-
                         break;
 
                     case get: {

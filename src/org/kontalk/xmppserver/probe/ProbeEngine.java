@@ -4,6 +4,7 @@ import java.util.*;
 
 import org.kontalk.xmppserver.KontalkRoster;
 
+import tigase.db.TigaseDBException;
 import tigase.server.Iq;
 import tigase.server.Packet;
 import tigase.xml.Element;
@@ -17,9 +18,13 @@ public class ProbeEngine {
 
     // request ID : probe info
     private final Map<String, ProbeInfo> probes;
+    // repository
+    private final ServerlistRepository repo;
 
-    public ProbeEngine() {
+    public ProbeEngine(ServerlistRepository repository) throws TigaseDBException {
         probes = new HashMap<String, ProbeInfo>();
+        repo = repository;
+        repo.reload();
     }
 
     /**
@@ -30,23 +35,25 @@ public class ProbeEngine {
      * @param storage will be used to store matched JIDs
      */
     public void broadcastLookup(JID user, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> storage) {
-        // TODO send to all servers
-        {
-            String server = "beta.kontalk.net";
-            JID serverJid = JID.jidInstanceNS(server);
+        List<ServerlistRepository.ServerInfo> serverlist = repo.getList();
+        for (ServerlistRepository.ServerInfo server : serverlist) {
+            if (server.isEnabled()) {
+                String serverName = server.getHost();
+                JID serverJid = JID.jidInstanceNS(serverName);
 
-            // build roster match packet
-            Packet roster = Packet.packetInstance(buildRosterMatch(jidList, requestId, server),
-                user, serverJid);
-            // send it to remote server
-            results.offer(roster);
+                // build roster match packet
+                Packet roster = Packet.packetInstance(buildRosterMatch(jidList, requestId, serverName),
+                        user, serverJid);
+                // send it to remote server
+                results.offer(roster);
 
-            ProbeInfo info = new ProbeInfo();
-            info.id = requestId;
-            info.sender = user;
-            info.storage = storage;
-            info.maxReplies = 1;
-            probes.put(requestId, info);
+                ProbeInfo info = new ProbeInfo();
+                info.id = requestId;
+                info.sender = user;
+                info.storage = storage;
+                info.maxReplies = 1;
+                probes.put(requestId, info);
+            }
         }
     }
 

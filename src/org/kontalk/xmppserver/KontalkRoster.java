@@ -129,7 +129,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
                         boolean isNetworkJid = domain.equalsIgnoreCase(networkDomain);
                         boolean isLocalJid = domain.equalsIgnoreCase(serverDomain);
 
-                        if (isLocalJid && session.getUserRepository().getUserUID(localJid) > 0) {
+                        if (session.getUserRepository().getUserUID(localJid) > 0 && (isLocalJid || isNetworkJid)) {
                             // local user
                             found.add(jid);
                         }

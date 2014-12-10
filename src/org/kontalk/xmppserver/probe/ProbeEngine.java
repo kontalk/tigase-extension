@@ -37,8 +37,8 @@ public class ProbeEngine {
     public void broadcastLookup(JID user, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> storage) {
         List<ServerlistRepository.ServerInfo> serverlist = repo.getList();
         for (ServerlistRepository.ServerInfo server : serverlist) {
-            if (server.isEnabled()) {
-                String serverName = server.getHost();
+            String serverName = server.getHost();
+            if (server.isEnabled() && !serverName.equalsIgnoreCase(user.getDomain())) {
                 JID serverJid = JID.jidInstanceNS(serverName);
 
                 // build roster match packet

@@ -3,6 +3,7 @@ package org.kontalk.xmppserver;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.Queue;
 import java.util.logging.Level;
@@ -13,8 +14,10 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.registration.DataValidationRepository;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
+import org.kontalk.xmppserver.registration.VerificationRepository;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.form.Field;
@@ -67,16 +70,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final Element[] DISCO_FEATURES = {new Element("feature", new String[]{"var"},
             new String[]{"jabber:iq:register"})};
 
-    private static final String DATA_NODE = "kontalk/register";
-
-    private static final String KEY_VERIFICATION_CODE = "verification_code";
-
-    private static final int VERIFICATION_CODE_LENGTH = 6;
-
+    private static final String ERROR_INVALID_CODE = "Invalid verification code.";
     private static final String ERROR_MALFORMED_REQUEST = "Please provide either a phone number or a public key and a verification code.";
 
     // TODO support for multiple domains
     private String serverFingerprint;
+    private VerificationRepository repo;
     private PhoneNumberVerificationProvider provider;
 
     private long statsRegistrationAttempts;
@@ -92,6 +91,25 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     public void init(Map<String, Object> settings) throws TigaseDBException {
         serverFingerprint = (String) settings.get("fingerprint");
 
+        // database parameters
+        String dbUri = (String) settings.get("db-uri");
+        try {
+            repo = new DataValidationRepository(dbUri);
+        }
+        catch (ClassNotFoundException e) {
+            throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
+        }
+        catch (InstantiationException e) {
+            throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException("SQL exception (uri=" + dbUri + ")", e);
+        }
+        catch (IllegalAccessException e) {
+            throw new TigaseDBException("Unknown error (uri=" + dbUri + ")", e);
+        }
+
+        // registration provider
         String providerClassName = (String) settings.get("provider");
         try {
             @SuppressWarnings("unchecked")
@@ -175,12 +193,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 // verify user id
                                 BareJID jid = verifyPublicKey(session, key);
 
-                                if (verifyCode(session, jid, code)) {
+                                if (verifyCode(jid, code)) {
                                     byte[] signedKey = signPublicKey(session, publicKeyData);
 
                                     Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
                                     statsRegisteredUsers++;
                                     results.offer(response);
+                                    break;
+                                }
+                                else {
+                                    // invalid verification code
+                                    results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_INVALID_CODE, true));
                                     break;
                                 }
                             }
@@ -246,9 +269,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         // generate verification code
         String code;
         try {
-            code = generateVerificationCode(session, jid);
+            code = generateVerificationCode(jid);
         }
-        catch (AlreadyRegisteredException e) {
+        catch (VerificationRepository.AlreadyRegisteredException e) {
             // throttling registrations
             statsInvalidRegistrations++;
             log.log(Level.INFO, "Throttling registration for: {0}", jid);
@@ -288,7 +311,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
             throws TigaseDBException {
         KontalkAuth.setUserFingerprint(session, jid, Hex.toHexString(fingerprint).toUpperCase());
-        session.getUserRepository().removeData(jid, DATA_NODE, KEY_VERIFICATION_CODE);
         return packet.okResult(prepareRegisteredResponseForm(publicKey), 0);
     }
 
@@ -313,15 +335,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return sha1(phone);
     }
 
-    private String generateVerificationCode(XMPPResourceConnection session, BareJID jid) throws AlreadyRegisteredException, TigaseDBException {
-        if (session.getUserRepository().getData(jid, DATA_NODE, KEY_VERIFICATION_CODE) != null) {
-            throw new AlreadyRegisteredException();
-        }
-
-        // generate random code
-        String code = verificationCode();
-        session.getUserRepository().setData(jid, DATA_NODE, KEY_VERIFICATION_CODE, code);
-        return code;
+    private String generateVerificationCode(BareJID jid)
+            throws VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+        return repo.generateVerificationCode(jid);
     }
 
     private BareJID parseUserID(PGPPublicKey publicKey) throws PGPException {
@@ -345,31 +361,14 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return jid;
     }
 
-    private boolean verifyCode(XMPPResourceConnection session, BareJID jid, String code) throws TigaseDBException {
-        return code.equals(session.getUserRepository().getData(jid, DATA_NODE, KEY_VERIFICATION_CODE));
+    private boolean verifyCode(BareJID jid, String code) throws TigaseDBException {
+        return repo.verifyCode(jid, code);
     }
 
     private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {
         String domain = session.getDomainAsJID().toString();
         KontalkKeyring keyring = KontalkKeyring.getInstance(domain, serverFingerprint);
         return keyring.signKey(publicKeyData);
-    }
-
-    private String verificationCode() {
-        return generateRandomString(VERIFICATION_CODE_LENGTH);
-    }
-
-    private static String generateRandomString(int length) {
-        StringBuilder buffer = new StringBuilder();
-        final String characters = "1234567890";
-
-        int charactersLength = characters.length();
-
-        for (int i = 0; i < length; i++) {
-            double index = Math.random() * charactersLength;
-            buffer.append(characters.charAt((int) index));
-        }
-        return buffer.toString();
     }
 
     private static String sha1(String text) {
@@ -427,11 +426,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         list.add(getComponentInfo().getName(), "Registration attempts", statsRegistrationAttempts, Level.INFO);
         list.add(getComponentInfo().getName(), "Registered users", statsRegisteredUsers, Level.INFO);
         list.add(getComponentInfo().getName(), "Invalid registrations", statsInvalidRegistrations, Level.INFO);
-    }
-
-    /** Exception thrown when the user has already tried to register recently. */
-    private static final class AlreadyRegisteredException extends Exception {
-        private static final long serialVersionUID = 1L;
     }
 
 }

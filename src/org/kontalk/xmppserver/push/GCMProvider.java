@@ -31,9 +31,6 @@ public class GCMProvider implements PushProvider {
     private String gcmApiKey;
     private Sender gcmSender;
 
-    // in-memory storage, but we don't mind since this class should go away soon
-    private Map<String, String> storage = new HashMap<String, String>(100);
-
     public void init(Map<String, Object> props) throws ConfigurationException {
         gcmProjectId = (String) props.get("gcm-projectid");
         gcmApiKey = (String) props.get("gcm-apikey");
@@ -61,18 +58,18 @@ public class GCMProvider implements PushProvider {
 
     @Override
     public void register(BareJID jid, String registrationId) {
-        storage.put(jid.toString(), registrationId);
+        // nothing to do
     }
 
     @Override
-    public void sendPushNotification(BareJID jid) throws IOException {
+    public void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException {
         if (gcmSender == null) {
             log.log(Level.WARNING, "GCM provider not configured correctly.");
             return;
         }
 
         String jidString = jid.toString();
-        String regId = storage.get(jidString);
+        String regId = info.getRegistrationId();
         if (regId != null) {
             com.google.android.gcm.server.Message msg = new com.google.android.gcm.server.Message.Builder()
                 .collapseKey("new")
@@ -84,7 +81,7 @@ public class GCMProvider implements PushProvider {
                 String newId = result.getCanonicalRegistrationId();
                 if (newId != null) {
                     // update registration id
-                    storage.put(jidString, newId);
+                    info.setRegistrationId(newId);
                 }
             }
             else {

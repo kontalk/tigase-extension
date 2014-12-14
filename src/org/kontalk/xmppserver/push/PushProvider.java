@@ -24,6 +24,6 @@ public interface PushProvider {
 
     public void register(BareJID jid, String registrationId);
 
-    public void sendPushNotification(BareJID jid) throws IOException;
+    public void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException;
 
 }

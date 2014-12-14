@@ -8,10 +8,11 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.kontalk.xmppserver.push.GCMProvider;
-import org.kontalk.xmppserver.push.PushProvider;
+import org.kontalk.xmppserver.push.*;
 
 import tigase.conf.ConfigurationException;
+import tigase.db.DBInitException;
+import tigase.db.TigaseDBException;
 import tigase.server.AbstractMessageReceiver;
 import tigase.server.Iq;
 import tigase.server.Message;
@@ -39,6 +40,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     private static final int NUM_THREADS = 20;
 
     private PushProvider provider = new GCMProvider();
+    private PushRepository repository = new DataPushRepository();
 
     @Override
     public void processPacket(Packet packet) {
@@ -51,6 +53,13 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                     BareJID user = packet.getStanzaFrom().getBareJID();
                     log.log(Level.FINE, "Registering user {0} to push notifications", user);
                     provider.register(user, regId);
+
+                    try {
+                        repository.register(user, provider.getName(), regId);
+                    } catch (TigaseDBException e) {
+                        log.log(Level.INFO, "Database error", e);
+                    }
+
                     packet.processedBy(getComponentInfo().getName());
                     addOutPacket(packet.okResult((String) null, 0));
                 }
@@ -69,10 +78,18 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                         try {
                             log.log(Level.FINE, "Sending push notification to {0}", jid);
                             // send push notification
-                            provider.sendPushNotification(BareJID.bareJIDInstanceNS(jid));
+                            BareJID user = BareJID.bareJIDInstanceNS(jid);
+                            List<PushRegistrationInfo> infoList = repository.getRegistrationInfo(user);
+                            for (PushRegistrationInfo info : infoList) {
+                                if (info.getProvider().equals(provider.getName())) {
+                                    provider.sendPushNotification(user, info);
+                                }
+                            }
                         }
                         catch (IOException e) {
                             log.log(Level.INFO, "GCM connection error", e);
+                        } catch (TigaseDBException e) {
+                            log.log(Level.INFO, "Database error", e);
                         }
                     }
                 }
@@ -98,6 +115,12 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     public void setProperties(Map<String, Object> props) throws ConfigurationException {
         super.setProperties(props);
         provider.init(props);
+        try {
+            repository.init(props);
+        }
+        catch (DBInitException e) {
+            throw new ConfigurationException("unable to initialize push data repository", e);
+        }
     }
 
     @Override

@@ -38,12 +38,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
 
     private ProbeEngine probeEngine;
 
-    private String networkDomain;
-
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
-        networkDomain = (String) settings.get("network-domain");
-
         // database parameters for probe engine
         String dbUri = (String) settings.get("db-uri");
         try {
@@ -126,23 +122,18 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
                         // TODO check for block status (XEP-0191)
                         // blocked contacts must not be found as existing
 
-                        boolean isNetworkJid = domain.equalsIgnoreCase(networkDomain);
                         boolean isLocalJid = domain.equalsIgnoreCase(serverDomain);
 
-                        if (session.getUserRepository().getUserUID(localJid) > 0 && (isLocalJid || isNetworkJid)) {
-                            // local user
-                            found.add(jid);
+                        if (isLocalJid) {
+                            if (session.getUserRepository().getUserUID(localJid) > 0) {
+                                // local user
+                                found.add(jid);
+                            }
                         }
-                        else if (isNetworkJid) {
+                        else {
                             // queue for remote lookup
                             remote.add(jid);
                         }
-
-                        else {
-                            // TODO neither local nor network JID
-
-                        }
-
                     }
 
                     if (remote.size() > 0) {

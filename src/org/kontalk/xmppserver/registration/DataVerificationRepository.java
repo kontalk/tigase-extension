@@ -18,13 +18,13 @@ import java.sql.SQLIntegrityConstraintViolationException;
  */
 public class DataVerificationRepository extends AbstractVerificationRepository {
 
-    private static final String CREATE_QUERY_ID = "create-query";
+    private static final String CREATE_QUERY_ID = "verification-create-query";
     private static final String CREATE_QUERY_SQL = "INSERT INTO validations VALUES (?, ?, SYSDATE())";
 
-    private static final String SELECT_QUERY_ID = "select-query";
+    private static final String SELECT_QUERY_ID = "verification-select-query";
     private static final String SELECT_QUERY_SQL = "SELECT user_id FROM validations WHERE code = ?";
 
-    private static final String DELETE_QUERY_ID = "delete-query";
+    private static final String DELETE_QUERY_ID = "verification-delete-query";
     private static final String DELETE_QUERY_SQL = "DELETE FROM validations WHERE code = ?";
 
     private DataRepository repo;

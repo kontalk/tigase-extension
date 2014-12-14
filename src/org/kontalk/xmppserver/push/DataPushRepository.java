@@ -20,13 +20,13 @@ import java.util.Map;
  */
 public class DataPushRepository implements PushRepository {
 
-    private static final String CREATE_QUERY_ID = "create-query";
+    private static final String CREATE_QUERY_ID = "push-create-query";
     private static final String CREATE_QUERY_SQL = "REPLACE INTO push VALUES (?, ?, ?)";
 
-    private static final String SELECT_QUERY_ID = "select-query";
+    private static final String SELECT_QUERY_ID = "push-select-query";
     private static final String SELECT_QUERY_SQL = "SELECT provider, reg_id FROM push WHERE user_id = ?";
 
-    private static final String DELETE_QUERY_ID = "delete-query";
+    private static final String DELETE_QUERY_ID = "push-delete-query";
     private static final String DELETE_QUERY_SQL = "DELETE FROM push WHERE user_id = ? AND provider = ?";
 
     private DataRepository repo;

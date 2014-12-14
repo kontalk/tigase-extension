@@ -35,10 +35,12 @@ public class DataPushRepository implements PushRepository {
     public void init(Map<String, Object> props) throws DBInitException {
         try {
             String dbUri = (String) props.get("db-uri");
-            repo = RepositoryFactory.getDataRepository(null, dbUri, null);
-            repo.initPreparedStatement(CREATE_QUERY_ID, CREATE_QUERY_SQL);
-            repo.initPreparedStatement(SELECT_QUERY_ID, SELECT_QUERY_SQL);
-            repo.initPreparedStatement(DELETE_QUERY_ID, DELETE_QUERY_SQL);
+            if (dbUri != null) {
+                repo = RepositoryFactory.getDataRepository(null, dbUri, null);
+                repo.initPreparedStatement(CREATE_QUERY_ID, CREATE_QUERY_SQL);
+                repo.initPreparedStatement(SELECT_QUERY_ID, SELECT_QUERY_SQL);
+                repo.initPreparedStatement(DELETE_QUERY_ID, DELETE_QUERY_SQL);
+            }
         }
         catch (Exception e) {
             throw new DBInitException("error initializing push data storage", e);

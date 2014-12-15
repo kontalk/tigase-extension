@@ -54,9 +54,6 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
 
             throw new TigaseDBException(e.getMessage(), e);
         }
-        finally {
-            repo.release(stm, null);
-        }
     }
 
     @Override
@@ -70,7 +67,6 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
             if (rs.next()) {
                 String userid = rs.getString(1);
                 if (jid.toString().equals(userid)) {
-                    repo.release(stm, null);
                     // delete the code
                     stm = repo.getPreparedStatement(jid, DELETE_QUERY_ID);
                     stm.setString(1, code);
@@ -85,7 +81,7 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
             throw new TigaseDBException(e.getMessage(), e);
         }
         finally {
-            repo.release(stm, rs);
+            repo.release(null, rs);
         }
     }
 

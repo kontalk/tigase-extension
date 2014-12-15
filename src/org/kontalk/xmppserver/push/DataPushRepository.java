@@ -60,9 +60,6 @@ public class DataPushRepository implements PushRepository {
         catch (SQLException e) {
             throw new TigaseDBException(e.getMessage(), e);
         }
-        finally {
-            repo.release(stm, null);
-        }
     }
 
     @Override
@@ -76,9 +73,6 @@ public class DataPushRepository implements PushRepository {
         }
         catch (SQLException e) {
             throw new TigaseDBException(e.getMessage(), e);
-        }
-        finally {
-            repo.release(stm, null);
         }
     }
 
@@ -104,7 +98,7 @@ public class DataPushRepository implements PushRepository {
             throw new TigaseDBException(e.getMessage(), e);
         }
         finally {
-            repo.release(stm, rs);
+            repo.release(null, rs);
         }
     }
 

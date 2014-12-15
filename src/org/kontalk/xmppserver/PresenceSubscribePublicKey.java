@@ -32,10 +32,10 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
     private static final String ID = "presence:urn:xmpp:pubkey:2";
 
-    private static final String ELEM_NAME = "pubkey";
-    private static final String XMLNS = "urn:xmpp:pubkey:2";
+    public static final String ELEM_NAME = "pubkey";
+    public static final String XMLNS = "urn:xmpp:pubkey:2";
 
-    private static final Logger     log = Logger.getLogger(Presence.class.getName());
+    private static final Logger log = Logger.getLogger(PresenceSubscribePublicKey.class.getName());
 
     private final RosterAbstract roster_util = getRosterUtil();
 

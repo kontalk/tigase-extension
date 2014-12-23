@@ -5,7 +5,7 @@ REPOS="gnupg-for-java tigase-utils tigase-server"
 
 for REPO in ${REPOS}; do
   echo "Building ${REPO}"
-  git clone "https://github.com/kontalk/${REPO}lol.git" &&
+  git clone "https://github.com/kontalk/${REPO}.git" &&
   cd "${REPO}" &&
   mvn install &&
   rm -fR "${REPO}" ||

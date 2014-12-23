@@ -146,10 +146,10 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
                                 // local user
                                 found.add(jid);
                             }
-                        }
-                        else {
-                            // queue for remote lookup
-                            remote.add(jid);
+                            else {
+                                // queue for remote lookup
+                                remote.add(jid);
+                            }
                         }
                     }
 

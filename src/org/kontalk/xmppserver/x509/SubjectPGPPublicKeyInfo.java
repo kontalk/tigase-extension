@@ -1,5 +1,5 @@
 /*
- * Kontalk Android client
+ * Kontalk XMPP Tigase extension
  * Copyright (C) 2014 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify

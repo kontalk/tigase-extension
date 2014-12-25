@@ -70,11 +70,11 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
                 count = (Integer.MAX_VALUE - value) + get() + 1;
             }
 
+            ArrayDeque<Packet> queue = getQueue();
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "acking {0} packets", new Object[] { count });
+                log.log(Level.FINEST, "acking {0} packets", new Object[] { queue.size() - count });
             }
 
-            ArrayDeque<Packet> queue = getQueue();
             while (count < queue.size()) {
                 Packet packet = queue.poll();
                 if (shouldRequestAck(packet)) {

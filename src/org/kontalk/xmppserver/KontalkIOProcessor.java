@@ -64,14 +64,14 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
 
         @Override
         public void ack(int value) {
-            if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "acking for {0} packets", new Object[] { value });
-            }
-
             int count = get() - value;
 
             if (count < 0) {
                 count = (Integer.MAX_VALUE - value) + get() + 1;
+            }
+
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "acking {0} packets", new Object[] { count });
             }
 
             ArrayDeque<Packet> queue = getQueue();

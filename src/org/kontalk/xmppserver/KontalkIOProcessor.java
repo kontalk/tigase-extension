@@ -25,6 +25,8 @@ import tigase.xml.Element;
 import tigase.xmpp.XMPPIOService;
 
 import java.util.ArrayDeque;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -32,6 +34,8 @@ import java.util.ArrayDeque;
  * @author Daniele Ricci
  */
 public class KontalkIOProcessor extends StreamManagementIOProcessor {
+
+    private static final Logger log = Logger.getLogger(KontalkIOProcessor.class.getCanonicalName());
 
     @Override
     protected boolean shouldRequestAck(XMPPIOService service, OutQueue outQueue) {
@@ -60,6 +64,10 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
 
         @Override
         public void ack(int value) {
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "acking for {0} packets", new Object[] { value });
+            }
+
             int count = get() - value;
 
             if (count < 0) {
@@ -69,8 +77,12 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
             ArrayDeque<Packet> queue = getQueue();
             while (count < queue.size()) {
                 Packet packet = queue.poll();
-                if (shouldRequestAck(packet))
+                if (shouldRequestAck(packet)) {
+                    if (log.isLoggable(Level.FINEST)) {
+                        log.log(Level.FINEST, "acking message: {0}", packet.toString());
+                    }
                     messagesWaiting--;
+                }
             }
         }
 

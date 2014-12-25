@@ -37,7 +37,7 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
     protected boolean shouldRequestAck(XMPPIOService service, OutQueue outQueue) {
         return super.shouldRequestAck(service, outQueue) ||
                 (outQueue instanceof MyOutQueue &&
-                        ((MyOutQueue) outQueue).messageWaitingForAck() > 0);
+                        ((MyOutQueue) outQueue).messagesWaitingForAck() > 0);
     }
 
     @Override
@@ -46,13 +46,13 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
     }
 
     private static class MyOutQueue extends OutQueue {
-        private int messageWaiting;
+        private int messagesWaiting;
 
         @Override
         public void append(Packet packet) {
             if (!packet.wasProcessedBy(XMLNS)) {
                 if (shouldRequestAck(packet)) {
-                    messageWaiting++;
+                    messagesWaiting++;
                 }
                 super.append(packet);
             }
@@ -70,7 +70,7 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
             while (count < queue.size()) {
                 Packet packet = queue.poll();
                 if (shouldRequestAck(packet))
-                    messageWaiting--;
+                    messagesWaiting--;
             }
         }
 
@@ -78,20 +78,16 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
             if (packet.getElemName() == Message.ELEM_NAME) {
                 Element element = packet.getElement();
 
-                // check for message body
-                if (element.getChild("body") != null)
-                    return true;
-
-                // check for delivery receipt
-                if (element.getChild("received", "urn:xmpp:receipts") != null)
-                    return true;
+                // check for message body or delivery receipt
+                return (element.getChild("body") != null ||
+                        element.getChild("received", "urn:xmpp:receipts") != null);
             }
 
             return false;
         }
 
-        public int messageWaitingForAck() {
-            return messageWaiting;
+        public int messagesWaitingForAck() {
+            return messagesWaiting;
         }
     }
 

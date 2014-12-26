@@ -144,6 +144,10 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
     private KontalkUser verifyPublicKey(byte[] publicKeyData) {
         KontalkKeyring keyring = getKeyring();
         KontalkUser user = keyring.authenticate(publicKeyData);
+        if (user == null) {
+            // authentication failed
+            return null;
+        }
 
         // retrive any old key fingerprint from storage
         String oldFingerprint = null;

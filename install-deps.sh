@@ -7,7 +7,10 @@ current_branch() {
   echo ${branch##refs/heads/}
 }
 
-BRANCH=$(current_branch)
+BRANCH="$1"
+if [ "$BRANCH" == "" ]; then
+  BRANCH=$(current_branch)
+fi
 echo "On branch ${BRANCH}"
 
 REPOS="gnupg-for-java tigase-utils"

@@ -45,20 +45,26 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
     private static final String DELETE_QUERY_ID = "verification-delete-query";
     private static final String DELETE_QUERY_SQL = "DELETE FROM validations WHERE code = ?";
 
-    private DataRepository repo;
+    private static final String PURGE_QUERY_ID = "verification-purge-query";
+    private static final String PURGE_QUERY_SQL = "DELETE FROM validations WHERE UNIX_TIMESTAMP() > (UNIX_TIMESTAMP(timestamp) + ?)";
 
-    public DataVerificationRepository(String dbUri) throws ClassNotFoundException,
+    private DataRepository repo;
+    private int timeout;
+
+    public DataVerificationRepository(String dbUri, int expirationTimeout) throws ClassNotFoundException,
             DBInitException, InstantiationException, SQLException, IllegalAccessException {
+        timeout = expirationTimeout;
         repo = RepositoryFactory.getDataRepository(null, dbUri, null);
         repo.initPreparedStatement(CREATE_QUERY_ID, CREATE_QUERY_SQL);
         repo.initPreparedStatement(SELECT_QUERY_ID, SELECT_QUERY_SQL);
         repo.initPreparedStatement(DELETE_QUERY_ID, DELETE_QUERY_SQL);
+        repo.initPreparedStatement(PURGE_QUERY_ID, PURGE_QUERY_SQL);
     }
 
     @Override
     public String generateVerificationCode(BareJID jid) throws AlreadyRegisteredException, TigaseDBException {
         String code = verificationCode();
-        PreparedStatement stm = null;
+        PreparedStatement stm;
         try {
             stm = repo.getPreparedStatement(jid, CREATE_QUERY_ID);
             stm.setString(1, jid.toString());
@@ -76,7 +82,7 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
 
     @Override
     public boolean verifyCode(BareJID jid, String code) throws TigaseDBException {
-        PreparedStatement stm = null;
+        PreparedStatement stm;
         ResultSet rs = null;
         try {
             stm = repo.getPreparedStatement(jid, SELECT_QUERY_ID);
@@ -100,6 +106,18 @@ public class DataVerificationRepository extends AbstractVerificationRepository {
         }
         finally {
             repo.release(null, rs);
+        }
+    }
+
+    public void purge() throws TigaseDBException {
+        PreparedStatement stm;
+        try {
+            stm = repo.getPreparedStatement(null, PURGE_QUERY_ID);
+            stm.setInt(1, timeout);
+            stm.execute();
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException(e.getMessage(), e);
         }
     }
 

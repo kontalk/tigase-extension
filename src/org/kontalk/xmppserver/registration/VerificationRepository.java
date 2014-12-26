@@ -37,6 +37,9 @@ public interface VerificationRepository {
     /** Verifies and delete the given verification. */
     public boolean verifyCode(BareJID jid, String code) throws TigaseDBException;
 
+    /** Purges old verification entries from storage. */
+    public void purge() throws TigaseDBException;
+
     /** Exception thrown when the user has already tried to register recently. */
     public static final class AlreadyRegisteredException extends Exception {
         private static final long serialVersionUID = 1L;

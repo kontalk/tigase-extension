@@ -1,11 +1,20 @@
 #!/bin/bash
 # Installs Tigase from Kontalk custom repositories
 
+current_branch() {
+  cd $(dirname $0)
+  branch=$(git symbolic-ref -q HEAD)
+  echo ${branch##refs/heads/}
+}
+
+BRANCH=$(current_branch)
+echo "On branch ${BRANCH}"
+
 REPOS="gnupg-for-java tigase-utils"
 
 for REPO in ${REPOS}; do
   echo "Building ${REPO}"
-  git clone "https://github.com/kontalk/${REPO}.git" &&
+  git clone -b "${BRANCH}" "https://github.com/kontalk/${REPO}.git" &&
   cd "${REPO}" &&
   mvn install &&
   cd .. &&
@@ -15,7 +24,7 @@ done
 
 REPO="tigase-server"
 echo "Building ${REPO}"
-git clone "https://github.com/kontalk/${REPO}.git" &&
+git clone -b "${BRANCH}" "https://github.com/kontalk/${REPO}.git" &&
 cd "${REPO}/modules/master" &&
 mvn install &&
 cd ../.. &&

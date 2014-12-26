@@ -51,8 +51,13 @@ public class ProbeEngine {
      * @param jidList list of JIDs to lookup
      * @param results the packet queue
      * @param storage will be used to store matched JIDs
+     * @return number of remote lookup requests sent
      */
-    public void broadcastLookup(JID user, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> storage) {
+    public int broadcastLookup(JID user, Collection<BareJID> jidList, String stanzaId, Queue<Packet> results, Set<BareJID> storage) {
+        // generate a unique internal request id
+        String requestId = UUID.randomUUID().toString();
+        ProbeInfo info = null;
+
         List<ServerlistRepository.ServerInfo> serverlist = repo.getList();
         for (ServerlistRepository.ServerInfo server : serverlist) {
             String serverName = server.getHost();
@@ -65,14 +70,23 @@ public class ProbeEngine {
                 // send it to remote server
                 results.offer(roster);
 
-                ProbeInfo info = new ProbeInfo();
-                info.id = requestId;
-                info.sender = user;
-                info.storage = storage;
-                info.maxReplies = 1;
-                probes.put(requestId, info);
+                info = probes.get(requestId);
+                if (info == null) {
+                    info = new ProbeInfo();
+                    info.id = requestId;
+                    info.sender = user;
+                    info.stanzaId = stanzaId;
+                    info.storage = storage;
+                    info.maxReplies = 1;
+                    probes.put(requestId, info);
+                }
+                else {
+                    info.maxReplies++;
+                }
             }
         }
+
+        return (info != null) ? info.maxReplies : 0;
     }
 
     /**
@@ -163,6 +177,8 @@ public class ProbeEngine {
     private static final class ProbeInfo {
         /** The final destination user. */
         private JID sender;
+        /** Stanza ID. */
+        private String stanzaId;
         /** Request ID. */
         private String id;
         /** Storage for matched JIDs. */

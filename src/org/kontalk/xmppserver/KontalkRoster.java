@@ -131,6 +131,10 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
                     Set<BareJID> found = new HashSet<BareJID>();
                     Set<BareJID> remote = new HashSet<BareJID>();
                     for (Element item : items) {
+                        if (!item.getName().equals("item")) {
+                            // not a roster item
+                            continue;
+                        }
 
                         BareJID jid = BareJID.bareJIDInstance(item.getAttributeStaticStr("jid"));
                         BareJID localJid = BareJID.bareJIDInstance(jid.getLocalpart(), serverDomain);
@@ -153,12 +157,13 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
                         }
                     }
 
-                    if (remote.size() > 0) {
+                    boolean remotePending = (remote.size() > 0);
+                    if (remotePending) {
                         // process remote entries
-                        remoteLookup(session, remote, packet.getStanzaId(), results, found);
+                        remotePending = (remoteLookup(session, remote, packet.getStanzaId(), results, found) > 0);
                     }
 
-                    else {
+                    if (!remotePending) {
                         // local results only
                         // return result immediately
                         Element query = new Element("query");
@@ -218,8 +223,8 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
      * @param results the packet queue
      * @param localJidList list of already found local JIDs
      */
-    private void remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
-        probeEngine.broadcastLookup(session.getJID(), jidList, requestId, results, localJidList);
+    private int remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
+        return probeEngine.broadcastLookup(session.getJID(), jidList, requestId, results, localJidList);
     }
 
     @Override

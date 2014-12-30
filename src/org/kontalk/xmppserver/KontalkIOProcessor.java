@@ -45,7 +45,7 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
     }
 
     @Override
-    protected OutQueue newOutQueue(XMPPIOService service) {
+    protected OutQueue newOutQueue() {
         return new MyOutQueue();
     }
 

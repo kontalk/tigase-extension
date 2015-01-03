@@ -61,7 +61,11 @@ public class KontalkLegacyFileUploadComponent extends AbstractMessageReceiver {
                 packet.processedBy(getComponentInfo().getName());
 
                 Element info = provider.getServiceInfo();
-                addOutPacket(packet.okResult(info, 1));
+                Packet result = packet.okResult(info, 1);
+                // workaround for okResult
+                result.getElement().getChild("upload", XMLNS)
+                        .setAttribute("node", upload.getAttributeStaticStr("node"));
+                addOutPacket(result);
             }
         }
     }

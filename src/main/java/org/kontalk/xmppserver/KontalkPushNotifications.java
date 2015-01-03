@@ -61,7 +61,8 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
         }
 
         if (session == null && packet.getElemName().equals(Message.ELEM_NAME) &&
-            packet.getType() == StanzaType.chat && packet.getElement().getChild("body") != null) {
+            packet.getType() == StanzaType.chat && (packet.getElement().getChild("body") != null ||
+                packet.getElement().getChild("request", "urn:xmpp:receipts") != null)) {
 
             // create push notification message
             Element request = new Element("message");

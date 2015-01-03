@@ -38,6 +38,7 @@ import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
+import tigase.xmpp.StanzaType;
 
 
 /**
@@ -63,7 +64,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     @Override
     public void processPacket(Packet packet) {
         // registration
-        if (packet.getElemName().equals(Iq.ELEM_NAME)) {
+        if (packet.getElemName().equals(Iq.ELEM_NAME) && packet.getType() == StanzaType.set) {
             Element register = packet.getElement().getChild("register", XMLNS);
             if (register != null && provider.getName().equals(register.getAttributeStaticStr("provider"))) {
                 String regId = register.getCData();

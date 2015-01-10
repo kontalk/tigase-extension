@@ -84,7 +84,7 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
 
             if (xmlns == XMLNS && type == StanzaType.get) {
                 JID to = packet.getStanzaTo();
-                if (roster_util.isSubscribedTo(session, to)) {
+                if (roster_util.isSubscribedTo(session, to) || session.isUserId(to.getBareJID())) {
                     Element pubkey = null;
 
                     // retrieve fingerprint from repository and send key data

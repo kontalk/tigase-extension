@@ -25,6 +25,9 @@ import tigase.server.Packet;
 import tigase.util.Base64;
 import tigase.xml.Element;
 import tigase.xmpp.*;
+import tigase.xmpp.impl.roster.RosterAbstract;
+import tigase.xmpp.impl.roster.RosterFactory;
+import tigase.xmpp.impl.roster.RosterFlat;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,6 +45,8 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
     private static final String[] IQ_PUBKEY_PATH = {Iq.ELEM_NAME, ELEM_NAME};
     private static final String[][] ELEMENTS = { IQ_PUBKEY_PATH };
     private static final String[] XMLNSS = {XMLNS};
+
+    private final RosterAbstract roster_util = getRosterUtil();
 
     @Override
     public String id() {
@@ -78,28 +83,42 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
             String xmlns = packet.getElement().getXMLNSStaticStr(IQ_PUBKEY_PATH);
 
             if (xmlns == XMLNS && type == StanzaType.get) {
-                Element pubkey = null;
+                JID to = packet.getStanzaTo();
+                if (roster_util.isSubscribedTo(session, to)) {
+                    Element pubkey = null;
 
-                // retrieve fingerprint from repository and send key data
-                String fingerprint = KontalkAuth.getUserFingerprint(session, packet.getStanzaTo().getBareJID());
-                if (fingerprint != null) {
-                    try {
-                        byte[] publicKeyData = KontalkKeyring.
-                                getInstance(session.getDomainAsJID().toString()).exportKey(fingerprint);
-                        if (publicKeyData != null) {
-                            pubkey = new Element("pubkey");
-                            pubkey.setXMLNS(XMLNS);
-                            pubkey.setCData(Base64.encode(publicKeyData));
+                    // retrieve fingerprint from repository and send key data
+                    String fingerprint = KontalkAuth.getUserFingerprint(session, to.getBareJID());
+                    if (fingerprint != null) {
+                        try {
+                            byte[] publicKeyData = KontalkKeyring.
+                                    getInstance(session.getDomainAsJID().toString()).exportKey(fingerprint);
+                            if (publicKeyData != null) {
+                                pubkey = new Element("pubkey");
+                                pubkey.setXMLNS(XMLNS);
+                                pubkey.setCData(Base64.encode(publicKeyData));
+                            }
+                        }
+                        catch (IOException e) {
+                            log.log(Level.WARNING, "Unable to export key for user {0} (fingerprint: {1})",
+                                    new Object[]{to, fingerprint});
                         }
                     }
-                    catch (IOException e) {
-                        log.log(Level.WARNING, "Unable to export key for user {0} (fingerprint: {1})",
-                                new Object[] { packet.getStanzaTo(), fingerprint });
+
+                    results.offer(packet.okResult(pubkey, 0));
+                }
+
+                else {
+                    try {
+                        results.offer( Authorization.NOT_AUTHORIZED.getResponseMessage( packet,
+                                "Not authorized.", true ) );
+                    }
+                    catch (PacketErrorTypeException pe) {
+                        // ignored
                     }
                 }
 
                 packet.processedBy(ID);
-                results.offer(packet.okResult(pubkey, 0));
             }
 
         }
@@ -148,6 +167,17 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
     @Override
     public String[] supNamespaces() {
         return XMLNSS;
+    }
+
+    /**
+     * Returns shared instance of class implementing {@link RosterAbstract} -
+     * either default one ({@link RosterFlat}) or the one configured with
+     * <em>"roster-implementation"</em> property.
+     *
+     * @return shared instance of class implementing {@link RosterAbstract}
+     */
+    protected RosterAbstract getRosterUtil() {
+        return RosterFactory.getRosterImplementation(true);
     }
 
 }

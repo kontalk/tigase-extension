@@ -24,10 +24,7 @@ import tigase.server.Packet;
 import tigase.server.Presence;
 import tigase.util.Base64;
 import tigase.xml.Element;
-import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.XMPPPreprocessorIfc;
-import tigase.xmpp.XMPPProcessor;
-import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
 import tigase.xmpp.impl.roster.RosterAbstract.PresenceType;
 import tigase.xmpp.impl.roster.RosterFactory;
@@ -68,8 +65,8 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
             try {
                 PresenceType presenceType = roster_util.getPresenceType(session, packet);
-                if (presenceType == PresenceType.out_subscribe &&
-                        !roster_util.isSubscribedFrom(session, packet.getStanzaTo())) {
+                if (presenceType == PresenceType.in_subscribe &&
+                        !roster_util.isSubscribedFrom(session, packet.getStanzaFrom())) {
 
                     // check if pubkey element was already added
                     if (!hasPublicKey(packet)) {
@@ -100,7 +97,8 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
     }
 
     private Packet addPublicKey(XMPPResourceConnection session, Packet packet) throws NotAuthorizedException, TigaseDBException {
-        String fingerprint = KontalkAuth.getUserFingerprint(session);
+        BareJID user = packet.getStanzaFrom().getBareJID();
+        String fingerprint = KontalkAuth.getUserFingerprint(session, user);
 
         if (fingerprint != null) {
             try {
@@ -118,8 +116,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
                 }
             }
             catch (IOException e) {
-                log.log(Level.WARNING, "unable to load key for user " +
-                    session.getBareJID(), e);
+                log.log(Level.WARNING, "unable to load key for user " + user, e);
             }
         }
 

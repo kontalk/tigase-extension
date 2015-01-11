@@ -188,7 +188,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         try {
 
             if ((packet.getPacketFrom() != null) && packet.getPacketFrom().equals(session.getConnectionId())
-                    && ((session.isUserId(id) || session.isLocalDomain(id.toString(), false)))) {
+                    && (!session.isAuthorized() || (session.isUserId(id) || session.isLocalDomain(id.toString(), false)))) {
 
                 Element request = packet.getElement();
 

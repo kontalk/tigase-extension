@@ -266,7 +266,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                                     // invalid revocation key
                                     log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
-                                    results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, true));
+                                    results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, false));
                                 }
                                 else {
                                     // user has no key, accept it
@@ -416,7 +416,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 }
             }
         } else {
-            results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, true));
+            results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, false));
         }
     }
 
@@ -450,8 +450,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         // TODO import key into gpg for advanced verification
         BareJID jid = parseUserID(publicKey);
         if (session.isAuthorized() ?
-                !session.getBareJID().equals(jid) :
-                !session.getDomainAsJID().toString().equalsIgnoreCase(jid.getDomain()))
+                session.getBareJID().equals(jid) :
+                session.getDomainAsJID().toString().equalsIgnoreCase(jid.getDomain()))
             return jid;
 
         throw new PGPException("Invalid email identifier");

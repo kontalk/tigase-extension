@@ -255,7 +255,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 if (oldFingerprint != null) {
                                     // user already has a key, check if revoked key fingerprint matches
                                     if (revoked != null) {
-                                        byte[] revokedData = Base64.decode(publicKey);
+                                        byte[] revokedData = Base64.decode(revoked);
                                         KontalkKeyring keyring = getKeyring(session);
                                         if (keyring.revoked(revokedData, oldFingerprint)) {
                                             byte[] publicKeyData = Base64.decode(publicKey);

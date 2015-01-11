@@ -216,6 +216,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             if (!session.isAuthorized() && phone != null) {
                                 Packet response = registerPhone(session, packet, phone);
                                 statsRegistrationAttempts++;
+                                packet.processedBy(ID);
                                 results.offer(response);
                                 break;
                             }
@@ -236,6 +237,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                                     Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
                                     statsRegisteredUsers++;
+                                    packet.processedBy(ID);
                                     results.offer(response);
                                 }
                                 else {
@@ -253,16 +255,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 if (oldFingerprint != null) {
                                     // user already has a key, check if revoked key fingerprint matches
                                     if (revoked != null) {
-                                        byte[] publicKeyData = Base64.decode(publicKey);
+                                        byte[] revokedData = Base64.decode(publicKey);
                                         KontalkKeyring keyring = getKeyring(session);
-                                        String newFingerprint = keyring.revoked(publicKeyData, oldFingerprint);
-                                        if (newFingerprint != null) {
+                                        if (keyring.revoked(revokedData, oldFingerprint)) {
+                                            byte[] publicKeyData = Base64.decode(publicKey);
                                             rolloverContinue(session, publicKeyData, packet, results);
                                             break;
                                         }
                                     }
 
                                     // invalid revocation key
+                                    log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
                                     results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, true));
                                 }
                                 else {
@@ -392,13 +395,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private void rolloverContinue(XMPPResourceConnection session, byte[] publicKeyData, Packet packet, Queue<Packet> results)
             throws IOException, PGPException, TigaseDBException, PacketErrorTypeException, NotAuthorizedException {
 
-        Packet response;
         PGPPublicKey key = loadPublicKey(publicKeyData);
         // verify user id
         BareJID jid = verifyPublicKey(session, key);
         if (jid != null) {
             byte[] signedKey = signPublicKey(session, publicKeyData);
-            response = register(session, packet, jid, key.getFingerprint(), signedKey);
+            Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
+
+            // send signed key in response
+            packet.processedBy(ID);
+            results.offer(response);
+
             // kick out the user
             try {
                 session.logout();
@@ -408,11 +415,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     log.finest("Ignoring error on kicking out user " + jid.toString());
                 }
             }
+        } else {
+            results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, true));
         }
-        else {
-            response = Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, true);
-        }
-        results.offer(response);
     }
 
     private String formatPhoneNumber(String phoneInput) throws NumberParseException {

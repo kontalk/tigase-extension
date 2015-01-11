@@ -30,4 +30,8 @@ public class KontalkAuth {
         session.getUserRepository().setData(jid, NODE_AUTH, KEY_FINGERPRINT, fingerprint);
     }
 
+    public static KontalkKeyring getKeyring(XMPPResourceConnection session, String serverFingerprint) {
+        return KontalkKeyring.getInstance(session.getDomainAsJID().toString(), serverFingerprint);
+    }
+
 }

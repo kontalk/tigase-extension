@@ -105,6 +105,21 @@ public class KontalkKeyring {
         return false;
     }
 
+    /**
+     * Imports the given revoked key and checks if fingerprint matches and
+     * key is revoked correctly.
+     * @return The fingerprint of the new key if successful.
+     */
+    public String revoked(byte[] keyData, String fingerprint) {
+        GnuPGData data = ctx.createDataObject(keyData);
+        String fpr = ctx.importKey(data);
+        data.destroy();
+
+        GnuPGKey key = ctx.getKeyByFingerprint(fpr);
+        return key.isRevoked() && key.getFingerprint().equalsIgnoreCase(fingerprint) ?
+                key.getFingerprint() : null;
+    }
+
     /** Validates the given key for expiration, revocation and signature by the server. */
     private BareJID validate(GnuPGKey key) {
         if (key.isRevoked() || key.isExpired() || key.isInvalid())

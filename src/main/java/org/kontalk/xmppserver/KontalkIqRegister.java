@@ -86,6 +86,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String FORM_FIELD_PHONE = "phone";
     private static final String FORM_FIELD_CODE = "code";
     private static final String FORM_FIELD_PUBKEY = "publickey";
+    private static final String FORM_FIELD_REVOKED = "revoked";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
             new String[]{"http://jabber.org/features/iq-register"})};
@@ -94,6 +95,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private static final String ERROR_INVALID_CODE = "Invalid verification code.";
     private static final String ERROR_MALFORMED_REQUEST = "Please provide either a phone number or a public key and a verification code.";
+    private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
+    private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
 
     /** Time in seconds between calls to {@link VerificationRepository#purge()}. */
     private static final int EXPIRED_TIMEOUT = 60000;
@@ -185,7 +188,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         try {
 
             if ((packet.getPacketFrom() != null) && packet.getPacketFrom().equals(session.getConnectionId())
-                    && (!session.isAuthorized() || (session.isUserId(id) || session.isLocalDomain(id.toString(), false)))) {
+                    && ((session.isUserId(id) || session.isLocalDomain(id.toString(), false)))) {
 
                 Element request = packet.getElement();
 
@@ -208,19 +211,19 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                         if (formElement != null) {
                             Form form = new Form(formElement);
 
-                            // phone number
+                            // phone number: verification code
                             String phone = form.getAsString(FORM_FIELD_PHONE);
-                            if (phone != null) {
+                            if (!session.isAuthorized() && phone != null) {
                                 Packet response = registerPhone(session, packet, phone);
                                 statsRegistrationAttempts++;
                                 results.offer(response);
                                 break;
                             }
 
-                            // verification code + public key
+                            // verification code + public key: key submission
                             String code = form.getAsString(FORM_FIELD_CODE);
                             String publicKey = form.getAsString(FORM_FIELD_PUBKEY);
-                            if (code != null && publicKey != null) {
+                            if (!session.isAuthorized() && code != null && publicKey != null) {
 
                                 // load public key
                                 byte[] publicKeyData = Base64.decode(publicKey);
@@ -234,15 +237,42 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
                                     statsRegisteredUsers++;
                                     results.offer(response);
-                                    break;
                                 }
                                 else {
                                     // invalid verification code
                                     results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_INVALID_CODE, true));
-                                    break;
                                 }
+
+                                break;
                             }
 
+                            // public key + revoked key: key rollover
+                            String revoked = form.getAsString(FORM_FIELD_REVOKED);
+                            if (session.isAuthorized() && publicKey != null) {
+                                String oldFingerprint = KontalkAuth.getUserFingerprint(session);
+                                if (oldFingerprint != null) {
+                                    // user already has a key, check if revoked key fingerprint matches
+                                    if (revoked != null) {
+                                        byte[] publicKeyData = Base64.decode(publicKey);
+                                        KontalkKeyring keyring = getKeyring(session);
+                                        String newFingerprint = keyring.revoked(publicKeyData, oldFingerprint);
+                                        if (newFingerprint != null) {
+                                            rolloverContinue(session, publicKeyData, packet, results);
+                                            break;
+                                        }
+                                    }
+
+                                    // invalid revocation key
+                                    results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, true));
+                                }
+                                else {
+                                    // user has no key, accept it
+                                    byte[] publicKeyData = Base64.decode(publicKey);
+                                    rolloverContinue(session, publicKeyData, packet, results);
+                                }
+
+                                break;
+                            }
                         }
 
                         // bad request
@@ -278,7 +308,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         catch (PGPException e) {
             log.warning("PGP problem: " + e);
             results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
-                    "Invalid public key.", true));
+                    ERROR_INVALID_PUBKEY, true));
         }
     }
 
@@ -359,6 +389,32 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return query;
     }
 
+    private void rolloverContinue(XMPPResourceConnection session, byte[] publicKeyData, Packet packet, Queue<Packet> results)
+            throws IOException, PGPException, TigaseDBException, PacketErrorTypeException, NotAuthorizedException {
+
+        Packet response;
+        PGPPublicKey key = loadPublicKey(publicKeyData);
+        // verify user id
+        BareJID jid = verifyPublicKey(session, key);
+        if (jid != null) {
+            byte[] signedKey = signPublicKey(session, publicKeyData);
+            response = register(session, packet, jid, key.getFingerprint(), signedKey);
+            // kick out the user
+            try {
+                session.logout();
+            }
+            catch (NotAuthorizedException e) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.finest("Ignoring error on kicking out user " + jid.toString());
+                }
+            }
+        }
+        else {
+            response = Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, true);
+        }
+        results.offer(response);
+    }
+
     private String formatPhoneNumber(String phoneInput) throws NumberParseException {
         PhoneNumberUtil util = PhoneNumberUtil.getInstance();
         Phonenumber.PhoneNumber phone = util.parse(phoneInput, null);
@@ -385,14 +441,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return PGPUtils.getMasterKey(publicKeyData);
     }
 
-    private BareJID verifyPublicKey(XMPPResourceConnection session, PGPPublicKey publicKey) throws PGPException {
-        BareJID jid = parseUserID(publicKey);
-        if (!session.getDomainAsJID().toString().equalsIgnoreCase(jid.getDomain()))
-            throw new PGPException("Invalid email identifier");
-
+    private BareJID verifyPublicKey(XMPPResourceConnection session, PGPPublicKey publicKey) throws PGPException, NotAuthorizedException {
         // TODO import key into gpg for advanced verification
+        BareJID jid = parseUserID(publicKey);
+        if (session.isAuthorized() ?
+                !session.getBareJID().equals(jid) :
+                !session.getDomainAsJID().toString().equalsIgnoreCase(jid.getDomain()))
+            return jid;
 
-        return jid;
+        throw new PGPException("Invalid email identifier");
     }
 
     private boolean verifyCode(BareJID jid, String code) throws TigaseDBException {
@@ -400,9 +457,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     }
 
     private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {
-        String domain = session.getDomainAsJID().toString();
-        KontalkKeyring keyring = KontalkKeyring.getInstance(domain, serverFingerprint);
+        KontalkKeyring keyring = getKeyring(session);
         return keyring.signKey(publicKeyData);
+    }
+
+    private KontalkKeyring getKeyring(XMPPResourceConnection session) {
+        return KontalkAuth.getKeyring(session, serverFingerprint);
     }
 
     private static String sha1(String text) {

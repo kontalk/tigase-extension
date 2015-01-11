@@ -405,17 +405,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             // send signed key in response
             packet.processedBy(ID);
             results.offer(response);
-
-            // kick out the user
-            try {
-                session.logout();
-            }
-            catch (NotAuthorizedException e) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.finest("Ignoring error on kicking out user " + jid.toString());
-                }
-            }
-        } else {
+        }
+        else {
             results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, false));
         }
     }
@@ -492,7 +483,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
         if ((session != null) && session.getDomain().isRegisterEnabled()) {
             return DISCO_FEATURES;
-        } else {
+        }
+        else {
             return null;
         }
     }
@@ -514,7 +506,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
         if ((session != null) && session.getDomain().isRegisterEnabled()) {
             return FEATURES;
-        } else {
+        }
+        else {
             return null;
         }
     }

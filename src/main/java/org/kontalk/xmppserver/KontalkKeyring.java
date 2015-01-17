@@ -41,10 +41,10 @@ public class KontalkKeyring {
 
     private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
 
-    private String domain;
-    private String fingerprint;
-    private GnuPGContext ctx;
-    private GnuPGKey secretKey;
+    private final String domain;
+    private final String fingerprint;
+    private final GnuPGContext ctx;
+    private final GnuPGKey secretKey;
 
     /** Use {@link #getInstance(String, String)} instead. */
     public KontalkKeyring(String domain, String fingerprint) {
@@ -187,6 +187,45 @@ public class KontalkKeyring {
         }
 
         throw new PGPException("Invalid key data");
+    }
+
+    /**
+     * Verifies Kontalk legacy authentication tokens.
+     * @param token the authentication token
+     * @param fingerprint fingerprint of the legacy server
+     * @return a Kontalk user instance if successful.
+     */
+    public KontalkUser verifyLegacyToken(byte[] token, String fingerprint) {
+        synchronized (ctx) {
+            GnuPGData signed = null;
+            GnuPGData unused = null;
+            GnuPGData plain = null;
+
+            try {
+                signed = ctx.createDataObject(token);
+                unused = ctx.createDataObject();
+                plain = ctx.createDataObject();
+                ctx.verify(signed, unused, plain);
+
+                String text = plain.toString();
+                String[] parsed = text.split("\\|");
+                if (parsed.length == 2 && parsed[1].equals(fingerprint)) {
+                    BareJID jid = BareJID.bareJIDInstanceNS(parsed[0], domain);
+                    return new KontalkUser(jid, null);
+                }
+
+            }
+            finally {
+                if (signed != null)
+                    signed.destroy();
+                if (unused != null)
+                    unused.destroy();
+                if (plain != null)
+                    plain.destroy();
+            }
+        }
+
+        return null;
     }
 
     /** Initializes the keyring. */

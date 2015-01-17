@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver;
 
+import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
 import tigase.server.Packet;
 import tigase.xml.Element;
@@ -25,7 +26,6 @@ import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.XMPPResourceConnection;
 import tigase.xmpp.impl.Presence;
 
-import java.io.IOException;
 import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;

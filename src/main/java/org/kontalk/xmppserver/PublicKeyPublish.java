@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver;
 
+import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;

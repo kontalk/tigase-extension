@@ -32,6 +32,7 @@ import java.util.logging.Logger;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
+import org.kontalk.xmppserver.auth.KontalkAuth;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.registration.DataVerificationRepository;
@@ -109,8 +110,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private long statsRegisteredUsers;
     private long statsInvalidRegistrations;
 
-    private Timer timer;
-
     @Override
     public String id() {
         return ID;
@@ -161,7 +160,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         if (timeout > 0) {
             // create a scheduler for our own use
-            timer = new Timer(id() + " tasks", true);
+            Timer timer = new Timer(id() + " tasks", true);
             // setup looping task for verification codes expiration
             timer.scheduleAtFixedRate(new PurgeTask(repo), EXPIRED_TIMEOUT, EXPIRED_TIMEOUT);
         }

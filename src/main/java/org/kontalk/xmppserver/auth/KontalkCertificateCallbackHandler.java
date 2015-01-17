@@ -1,4 +1,4 @@
-package org.kontalk.xmppserver;
+package org.kontalk.xmppserver.auth;
 
 import java.io.IOException;
 import java.security.cert.Certificate;
@@ -15,6 +15,9 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
+import org.kontalk.xmppserver.KontalkKeyring;
+import org.kontalk.xmppserver.KontalkUser;
+import org.kontalk.xmppserver.Security;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.x509.SubjectPGPPublicKeyInfo;
 

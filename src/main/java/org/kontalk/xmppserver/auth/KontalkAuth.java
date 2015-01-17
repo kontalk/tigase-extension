@@ -1,5 +1,6 @@
-package org.kontalk.xmppserver;
+package org.kontalk.xmppserver.auth;
 
+import org.kontalk.xmppserver.KontalkKeyring;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.NotAuthorizedException;

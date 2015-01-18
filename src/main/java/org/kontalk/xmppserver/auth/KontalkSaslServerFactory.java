@@ -18,10 +18,11 @@
 
 package org.kontalk.xmppserver.auth;
 
+import tigase.auth.mechanisms.TigaseSaslServerFactory;
+
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.sasl.SaslException;
 import javax.security.sasl.SaslServer;
-import javax.security.sasl.SaslServerFactory;
 import java.util.Map;
 
 
@@ -29,7 +30,7 @@ import java.util.Map;
  * A custom SASL server factory to support KONTALK-TOKEN auth mechanism.
  * @author Daniele Ricci
  */
-public class KontalkSaslServerFactory implements SaslServerFactory {
+public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
 
     @Override
     public SaslServer createSaslServer(final String mechanism, final String protocol, final String serverName,
@@ -38,13 +39,13 @@ public class KontalkSaslServerFactory implements SaslServerFactory {
             return new SaslKontalkToken(props, callbackHandler);
         }
         else {
-            throw new SaslException("Mechanism not supported yet.");
+            return super.createSaslServer(mechanism, protocol, serverName, props, callbackHandler);
         }
     }
 
     @Override
     public String[] getMechanismNames(Map<String, ?> props) {
-        return new String[] { SaslKontalkToken.MECHANISM };
+        return new String[] { "EXTERNAL", SaslKontalkToken.MECHANISM };
     }
 
 }

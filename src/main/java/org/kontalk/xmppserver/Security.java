@@ -28,8 +28,16 @@ public class Security {
 
     public static final String PROVIDER = "BC";
 
-    static {
+    private static Security instance;
+
+    private Security() {
         java.security.Security.insertProviderAt(new BouncyCastleProvider(), 1);
+    }
+
+    public static void init() {
+        if (instance == null) {
+            instance = new Security();
+        }
     }
 
 }

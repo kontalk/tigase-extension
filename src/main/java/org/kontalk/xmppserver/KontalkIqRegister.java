@@ -21,6 +21,8 @@ package org.kontalk.xmppserver;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Queue;
@@ -39,7 +41,10 @@ import org.kontalk.xmppserver.registration.DataVerificationRepository;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import org.kontalk.xmppserver.registration.VerificationRepository;
+import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
+import tigase.auth.mechanisms.SaslEXTERNAL;
+import tigase.cert.CertificateEntry;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.form.Field;
@@ -86,7 +91,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     // form fields
     private static final String FORM_FIELD_PHONE = "phone";
     private static final String FORM_FIELD_CODE = "code";
-    private static final String FORM_FIELD_PUBKEY = "publickey";
     private static final String FORM_FIELD_REVOKED = "revoked";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
@@ -220,13 +224,14 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 break;
                             }
 
-                            // verification code + public key: key submission
+                            // verification code: key submission
                             String code = form.getAsString(FORM_FIELD_CODE);
-                            String publicKey = form.getAsString(FORM_FIELD_PUBKEY);
-                            if (!session.isAuthorized() && code != null && publicKey != null) {
+                            // get public key block from client certificate
+                            byte[] publicKeyData = getPublicKey(session);
+
+                            if (!session.isAuthorized() && code != null) {
 
                                 // load public key
-                                byte[] publicKeyData = Base64.decode(publicKey);
                                 PGPPublicKey key = loadPublicKey(publicKeyData);
                                 // verify user id
                                 BareJID jid = verifyPublicKey(session, key);
@@ -249,7 +254,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                             // public key + revoked key: key rollover
                             String revoked = form.getAsString(FORM_FIELD_REVOKED);
-                            if (session.isAuthorized() && publicKey != null) {
+                            if (session.isAuthorized()) {
                                 String oldFingerprint = KontalkAuth.getUserFingerprint(session);
                                 if (oldFingerprint != null) {
                                     // user already has a key, check if revoked key fingerprint matches
@@ -257,7 +262,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                         byte[] revokedData = Base64.decode(revoked);
                                         KontalkKeyring keyring = getKeyring(session);
                                         if (keyring.revoked(revokedData, oldFingerprint)) {
-                                            byte[] publicKeyData = Base64.decode(publicKey);
                                             rolloverContinue(session, publicKeyData, packet, results);
                                             break;
                                         }
@@ -269,7 +273,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 }
                                 else {
                                     // user has no key, accept it
-                                    byte[] publicKeyData = Base64.decode(publicKey);
                                     rolloverContinue(session, publicKeyData, packet, results);
                                 }
 
@@ -308,10 +311,29 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     "Internal PGP error. Please contact administrator.", true));
         }
         catch (PGPException e) {
+            e.printStackTrace(System.err);
             log.warning("PGP problem: " + e);
             results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
                     ERROR_INVALID_PUBKEY, true));
         }
+    }
+
+    private byte[] getPublicKey(XMPPResourceConnection session) throws PGPException, IOException {
+        CertificateEntry certEntry = (CertificateEntry) session.getSessionData(SaslEXTERNAL.SESSION_AUTH_PEER_CERT);
+        if (certEntry != null) {
+            Certificate[] chain = certEntry.getCertChain();
+            if (chain != null && chain.length > 0) {
+                // take the last certificate in the chain
+                // it shouldn't matter since the peer certificate should be just one
+                Certificate peerCert = chain[chain.length - 1];
+
+                if (peerCert instanceof X509Certificate) {
+                    return X509Utils.getMatchingPublicKey((X509Certificate) peerCert);
+                }
+            }
+        }
+
+        throw new PGPException("client certificate not found");
     }
 
     private Packet registerPhone(XMPPResourceConnection session, Packet packet, String phoneInput) throws PacketErrorTypeException, TigaseDBException {

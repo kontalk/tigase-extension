@@ -39,6 +39,7 @@ import org.kontalk.xmppserver.Security;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import org.kontalk.xmppserver.x509.SubjectPGPPublicKeyInfo;
 
+import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.auth.DomainAware;
 import tigase.auth.callbacks.ValidateCertificateData;
 import tigase.auth.impl.CertBasedCallbackHandler;
@@ -127,15 +128,11 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
 
         if (peerCert instanceof X509Certificate) {
             X509Certificate cert = (X509Certificate) peerCert;
-            byte[] publicKeyExtData = cert.getExtensionValue(SubjectPGPPublicKeyInfo.OID.getId());
+            byte[] publicKeyData = X509Utils.getPublicKeyBlock(cert);
 
-            if (publicKeyExtData != null) {
-                SubjectPGPPublicKeyInfo keyInfo = SubjectPGPPublicKeyInfo.getInstance(publicKeyExtData);
-
-                byte[] publicKeyData = keyInfo.getPublicKeyData().getBytes();
-
+            if (publicKeyData != null) {
                 // verify that the certificate public key matches the public key extension
-                byte[] keyDataFromExtension = convertPublicKey(publicKeyData);
+                byte[] keyDataFromExtension = PGPUtils.convertPublicKey(publicKeyData);
                 byte[] keyDataFromCertificate = cert.getPublicKey().getEncoded();
 
                 if (Arrays.equals(keyDataFromCertificate, keyDataFromExtension)) {
@@ -154,12 +151,6 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         }
 
         return null;
-    }
-
-    /** Converts a PGP public key into a public key. */
-    private byte[] convertPublicKey(byte[] publicKeyData) throws PGPException, IOException {
-        PGPPublicKey pk = PGPUtils.getMasterKey(publicKeyData);
-        return PGPUtils.convertPublicKey(pk).getEncoded();
     }
 
     private KontalkUser verifyPublicKey(byte[] publicKeyData) {

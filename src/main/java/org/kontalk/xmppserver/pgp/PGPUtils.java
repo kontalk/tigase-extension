@@ -30,12 +30,17 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter;
+import org.kontalk.xmppserver.Security;
 
 /**
  * PGP related utilities.
  * @author Daniele Ricci
  */
 public class PGPUtils {
+
+    static {
+        Security.init();
+    }
 
     /** Singleton for converting a PGP key to a JCA key. */
     private static JcaPGPKeyConverter sKeyConverter;
@@ -75,6 +80,12 @@ public class PGPUtils {
         }
 
         throw new PGPException("invalid keyring data.");
+    }
+
+    /** Converts a PGP public key into a public key. */
+    public static byte[] convertPublicKey(byte[] publicKeyData) throws PGPException, IOException {
+        PGPPublicKey pk = PGPUtils.getMasterKey(publicKeyData);
+        return convertPublicKey(pk).getEncoded();
     }
 
     public static PublicKey convertPublicKey(PGPPublicKey key) throws PGPException {

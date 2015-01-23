@@ -27,7 +27,7 @@ import java.util.Map;
 
 
 /**
- * A custom SASL server factory to support KONTALK-TOKEN auth mechanism.
+ * A custom SASL server factory to support KONTALK-TOKEN/PLAIN auth mechanism.
  * @author Daniele Ricci
  */
 public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
@@ -38,6 +38,9 @@ public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
         if (mechanism.equals(SaslKontalkToken.MECHANISM)) {
             return new SaslKontalkToken(props, callbackHandler);
         }
+        else if (mechanism.equals(SaslKontalkPlainToken.MECHANISM)) {
+            return new SaslKontalkPlainToken(props, callbackHandler);
+        }
         else {
             return super.createSaslServer(mechanism, protocol, serverName, props, callbackHandler);
         }
@@ -45,7 +48,11 @@ public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
 
     @Override
     public String[] getMechanismNames(Map<String, ?> props) {
-        return new String[] { "EXTERNAL", SaslKontalkToken.MECHANISM };
+        return new String[] {
+            "EXTERNAL",
+            SaslKontalkToken.MECHANISM,
+            SaslKontalkPlainToken.MECHANISM,
+        };
     }
 
 }

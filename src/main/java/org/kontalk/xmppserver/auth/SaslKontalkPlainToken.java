@@ -18,23 +18,25 @@
 
 package org.kontalk.xmppserver.auth;
 
-import tigase.auth.DefaultMechanismSelector;
-import tigase.xmpp.XMPPResourceConnection;
-
-import javax.security.sasl.SaslServerFactory;
+import javax.security.auth.callback.CallbackHandler;
+import java.util.Map;
 
 
 /**
- * SASL mechanism selector for Kontalk legacy token.
+ * SASL mechanism for Kontalk authentication tokens with PLAIN.
  * @author Daniele Ricci
  */
-public class KontalkMechanismSelector extends DefaultMechanismSelector {
+public class SaslKontalkPlainToken extends SaslKontalkToken {
 
-    protected boolean match(SaslServerFactory factory, String mechanismName, XMPPResourceConnection session) {
-        return super.match(factory, mechanismName, session) ||
-            (factory instanceof KontalkSaslServerFactory &&
-                    (mechanismName.equals(SaslKontalkToken.MECHANISM) ||
-                    mechanismName.equals(SaslKontalkPlainToken.MECHANISM)));
+    public static final String MECHANISM = "PLAIN";
+
+    SaslKontalkPlainToken(Map<? super String, ?> props, CallbackHandler callbackHandler) {
+        super(props, callbackHandler);
+    }
+
+    @Override
+    public String getMechanismName() {
+        return MECHANISM;
     }
 
 }

@@ -91,6 +91,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     // form fields
     private static final String FORM_FIELD_PHONE = "phone";
     private static final String FORM_FIELD_CODE = "code";
+    private static final String FORM_FIELD_PUBLICKEY = "publickey";
     private static final String FORM_FIELD_REVOKED = "revoked";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
@@ -252,13 +253,18 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 break;
                             }
 
-                            // revoked key: key rollover or upgrade from legacy
-                            String revoked = form.getAsString(FORM_FIELD_REVOKED);
+                            // public key + revoked key: key rollover or upgrade from legacy
                             if (session.isAuthorized()) {
                                 String oldFingerprint = KontalkAuth.getUserFingerprint(session);
                                 if (oldFingerprint != null) {
+                                    // do not use public key from certificate
+                                    publicKeyData = null;
+
                                     // user already has a key, check if revoked key fingerprint matches
-                                    if (revoked != null) {
+                                    String publicKey = form.getAsString(FORM_FIELD_PUBLICKEY);
+                                    String revoked = form.getAsString(FORM_FIELD_REVOKED);
+                                    if (publicKey != null && revoked != null) {
+                                        publicKeyData = Base64.decode(publicKey);
                                         byte[] revokedData = Base64.decode(revoked);
                                         KontalkKeyring keyring = getKeyring(session);
                                         if (!keyring.revoked(revokedData, oldFingerprint)) {
@@ -271,8 +277,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 }
 
                                 // user has no key or revocation key was fine, accept the new key
-                                rolloverContinue(session, publicKeyData, packet, results);
-                                break;
+                                if (publicKeyData != null) {
+                                    rolloverContinue(session, publicKeyData, packet, results);
+                                    break;
+                                }
                             }
                         }
 

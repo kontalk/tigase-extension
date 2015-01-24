@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.auth;
 
+import tigase.auth.XmppSaslException;
 import tigase.util.Base64;
 
 import javax.security.auth.callback.CallbackHandler;
@@ -39,7 +40,16 @@ public class SaslKontalkPlainToken extends SaslKontalkToken {
 
     @Override
     public byte[] evaluateResponse(byte[] response) throws SaslException {
-        return super.evaluateResponse(Base64.decode(new String(response)));
+        if (response != null) {
+            String[] data = split(response, "");
+
+            if (data.length != 3)
+                throw new XmppSaslException(XmppSaslException.SaslError.malformed_request, "Invalid number of message parts");
+
+            final String passwd = data[2];
+            return super.evaluateResponse(Base64.decode(passwd));
+        }
+        return null;
     }
 
     @Override

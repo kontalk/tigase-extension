@@ -61,9 +61,7 @@ public class KontalkKeyring {
      * @return a user instance with JID and public key fingerprint.
      */
     public synchronized KontalkUser authenticate(byte[] keyData) {
-        GnuPGData data = ctx.createDataObject(keyData);
-        String fpr = ctx.importKey(data);
-        data.destroy();
+        String fpr = importKey(keyData);
 
         GnuPGKey key = ctx.getKeyByFingerprint(fpr);
 
@@ -110,10 +108,7 @@ public class KontalkKeyring {
      * key is revoked correctly.
      */
     public boolean revoked(byte[] keyData, String fingerprint) {
-        GnuPGData data = ctx.createDataObject(keyData);
-        String fpr = ctx.importKey(data);
-        data.destroy();
-
+        String fpr = importKey(keyData);
         GnuPGKey key = ctx.getKeyByFingerprint(fpr);
         return key.isRevoked() && key.getFingerprint().equalsIgnoreCase(fingerprint);
     }
@@ -161,9 +156,7 @@ public class KontalkKeyring {
 
     // TODO this needs to be implemented in Java
     public synchronized byte[] signKey(byte[] keyData) throws IOException, PGPException {
-        GnuPGData data = ctx.createDataObject(keyData);
-        String fpr = ctx.importKey(data);
-        data.destroy();
+        String fpr = importKey(keyData);
 
         if (fpr != null) {
             GnuPGKey key = ctx.getKeyByFingerprint(fpr);
@@ -187,6 +180,13 @@ public class KontalkKeyring {
         }
 
         throw new PGPException("Invalid key data");
+    }
+
+    String importKey(byte[] keyData) {
+        GnuPGData data = ctx.createDataObject(keyData);
+        String fpr = ctx.importKey(data);
+        data.destroy();
+        return fpr;
     }
 
     /**

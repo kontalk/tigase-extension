@@ -210,7 +210,7 @@ public class KontalkKeyring {
                 String text = plain.toString();
                 String[] parsed = text.split("\\|");
                 if (parsed.length == 2 && parsed[1].equals(fingerprint)) {
-                    BareJID jid = BareJID.bareJIDInstanceNS(parsed[0], domain);
+                    BareJID jid = BareJID.bareJIDInstanceNS(parsed[0].substring(0, 40), domain);
                     return new KontalkUser(jid, null);
                 }
 

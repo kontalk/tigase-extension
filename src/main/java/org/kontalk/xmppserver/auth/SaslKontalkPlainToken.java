@@ -18,7 +18,10 @@
 
 package org.kontalk.xmppserver.auth;
 
+import tigase.util.Base64;
+
 import javax.security.auth.callback.CallbackHandler;
+import javax.security.sasl.SaslException;
 import java.util.Map;
 
 
@@ -32,6 +35,11 @@ public class SaslKontalkPlainToken extends SaslKontalkToken {
 
     SaslKontalkPlainToken(Map<? super String, ?> props, CallbackHandler callbackHandler) {
         super(props, callbackHandler);
+    }
+
+    @Override
+    public byte[] evaluateResponse(byte[] response) throws SaslException {
+        return super.evaluateResponse(Base64.decode(new String(response)));
     }
 
     @Override

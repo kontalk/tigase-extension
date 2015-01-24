@@ -44,7 +44,7 @@ public class KontalkKeyring {
     private final String domain;
     private final String fingerprint;
     private final GnuPGContext ctx;
-    private final GnuPGKey secretKey;
+    private GnuPGKey secretKey;
 
     /** Use {@link #getInstance(String, String)} instead. */
     public KontalkKeyring(String domain, String fingerprint) {
@@ -52,7 +52,8 @@ public class KontalkKeyring {
         this.fingerprint = fingerprint;
         this.ctx = new GnuPGContext();
         this.ctx.setArmor(false);
-        this.secretKey = ctx.getKeyByFingerprint(fingerprint);
+        if (fingerprint != null)
+            this.secretKey = ctx.getKeyByFingerprint(fingerprint);
     }
 
     /**
@@ -183,10 +184,12 @@ public class KontalkKeyring {
     }
 
     String importKey(byte[] keyData) {
-        GnuPGData data = ctx.createDataObject(keyData);
-        String fpr = ctx.importKey(data);
-        data.destroy();
-        return fpr;
+        synchronized (ctx) {
+            GnuPGData data = ctx.createDataObject(keyData);
+            String fpr = ctx.importKey(data);
+            data.destroy();
+            return fpr;
+        }
     }
 
     /**

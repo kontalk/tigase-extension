@@ -252,7 +252,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 break;
                             }
 
-                            // public key + revoked key: key rollover
+                            // revoked key: key rollover or upgrade from legacy
                             String revoked = form.getAsString(FORM_FIELD_REVOKED);
                             if (session.isAuthorized()) {
                                 String oldFingerprint = KontalkAuth.getUserFingerprint(session);
@@ -261,21 +261,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     if (revoked != null) {
                                         byte[] revokedData = Base64.decode(revoked);
                                         KontalkKeyring keyring = getKeyring(session);
-                                        if (keyring.revoked(revokedData, oldFingerprint)) {
-                                            rolloverContinue(session, publicKeyData, packet, results);
+                                        if (!keyring.revoked(revokedData, oldFingerprint)) {
+                                            // invalid revocation key
+                                            log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
+                                            results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, false));
                                             break;
                                         }
                                     }
-
-                                    // invalid revocation key
-                                    log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
-                                    results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, false));
-                                }
-                                else {
-                                    // user has no key, accept it
-                                    rolloverContinue(session, publicKeyData, packet, results);
                                 }
 
+                                // user has no key or revocation key was fine, accept the new key
+                                rolloverContinue(session, publicKeyData, packet, results);
                                 break;
                             }
                         }

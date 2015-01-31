@@ -61,10 +61,13 @@ public class KontalkKeyring {
      * @param keyData public key data to check
      * @return a user instance with JID and public key fingerprint.
      */
-    public synchronized KontalkUser authenticate(byte[] keyData) {
+    public KontalkUser authenticate(byte[] keyData) {
         String fpr = importKey(keyData);
 
-        GnuPGKey key = ctx.getKeyByFingerprint(fpr);
+        GnuPGKey key;
+        synchronized (ctx) {
+            key = ctx.getKeyByFingerprint(fpr);
+        }
 
         BareJID jid = validate(key);
 
@@ -88,16 +91,20 @@ public class KontalkKeyring {
             return true;
         }
 
+        // retrive old user key
+        GnuPGKey oldKey;
         synchronized (ctx) {
-            // retrive old user key
-            GnuPGKey oldKey = ctx.getKeyByFingerprint(oldFingerprint);
-            if (oldKey != null && validate(oldKey) != null) {
-                // old key is still valid, check for timestamp
+            oldKey = ctx.getKeyByFingerprint(oldFingerprint);
+        }
+        if (oldKey != null && validate(oldKey) != null) {
+            // old key is still valid, check for timestamp
 
-                GnuPGKey newKey = ctx.getKeyByFingerprint(user.getFingerprint());
-                if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
-                    return true;
-                }
+            GnuPGKey newKey;
+            synchronized (ctx) {
+                newKey = ctx.getKeyByFingerprint(user.getFingerprint());
+            }
+            if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
+                return true;
             }
         }
 
@@ -110,7 +117,10 @@ public class KontalkKeyring {
      */
     public boolean revoked(byte[] keyData, String fingerprint) {
         String fpr = importKey(keyData);
-        GnuPGKey key = ctx.getKeyByFingerprint(fpr);
+        GnuPGKey key;
+        synchronized (ctx) {
+            key = ctx.getKeyByFingerprint(fpr);
+        }
         return key.isRevoked() && key.getFingerprint().equalsIgnoreCase(fingerprint);
     }
 
@@ -128,7 +138,10 @@ public class KontalkKeyring {
                 if (sig.isRevoked() || sig.isExpired() || sig.isInvalid())
                     return null;
 
-                GnuPGKey skey = ctx.getKeyByFingerprint(sig.getKeyID());
+                GnuPGKey skey;
+                synchronized (ctx) {
+                    skey = ctx.getKeyByFingerprint(sig.getKeyID());
+                }
                 if (skey != null && skey.getFingerprint().equalsIgnoreCase(fingerprint))
                     return jid;
             }
@@ -138,29 +151,41 @@ public class KontalkKeyring {
         return null;
     }
 
-    public synchronized byte[] exportKey(String fingerprint) throws IOException {
-        GnuPGData data = ctx.createDataObject();
-        ctx.export(fingerprint, 0, data);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream(data.size());
+    public byte[] exportKey(String fingerprint) throws IOException {
+        GnuPGData data;
+        synchronized (ctx) {
+            data = ctx.createDataObject();
+            ctx.export(fingerprint, 0, data);
+        }
+
+        ByteArrayOutputStream baos = null;
+
         try {
-            data.write(baos);
+            synchronized (ctx) {
+                baos = new ByteArrayOutputStream(data.size());
+                data.write(baos);
+            }
             return baos.toByteArray();
         }
         finally {
             try {
-                baos.close();
+                if (baos != null)
+                    baos.close();
             }
-            catch (Exception e) {
+            catch (IOException ignored) {
             }
         }
     }
 
     // TODO this needs to be implemented in Java
-    public synchronized byte[] signKey(byte[] keyData) throws IOException, PGPException {
+    public byte[] signKey(byte[] keyData) throws IOException, PGPException {
         String fpr = importKey(keyData);
 
         if (fpr != null) {
-            GnuPGKey key = ctx.getKeyByFingerprint(fpr);
+            GnuPGKey key;
+            synchronized (ctx) {
+                key = ctx.getKeyByFingerprint(fpr);
+            }
             if (key != null) {
                 StringBuilder cmd = new StringBuilder("gpg --yes --batch -u ")
                         .append(fingerprint)
@@ -169,7 +194,9 @@ public class KontalkKeyring {
 
                 try {
                     System.out.println("CMD: <" + cmd + ">");
-                    Runtime.getRuntime().exec(cmd.toString()).waitFor();
+                    synchronized (ctx) {
+                        Runtime.getRuntime().exec(cmd.toString()).waitFor();
+                    }
                 }
                 catch (InterruptedException e) {
                     // interrupted
@@ -184,12 +211,13 @@ public class KontalkKeyring {
     }
 
     String importKey(byte[] keyData) {
+        String fpr;
         synchronized (ctx) {
             GnuPGData data = ctx.createDataObject(keyData);
-            String fpr = ctx.importKey(data);
+            fpr = ctx.importKey(data);
             data.destroy();
-            return fpr;
         }
+        return fpr;
     }
 
     /**

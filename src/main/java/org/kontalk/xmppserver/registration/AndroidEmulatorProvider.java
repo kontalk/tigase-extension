@@ -18,8 +18,14 @@
 
 package org.kontalk.xmppserver.registration;
 
+import org.kontalk.xmppserver.auth.KontalkAuth;
+import tigase.db.TigaseDBException;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.XMPPResourceConnection;
+
 import java.io.IOException;
 import java.util.Map;
+import java.util.logging.Logger;
 
 
 /**
@@ -27,14 +33,15 @@ import java.util.Map;
  * Sends an SMS via adb sms.
  * @author Daniele Ricci
  */
-public class AndroidEmulatorProvider extends AbstractSMSVerificationProvider {
+public class AndroidEmulatorProvider extends SMSDataStoreVerificationProvider {
+    private static Logger log = Logger.getLogger(NexmoSMSProvider.class.getName());
 
     private String deviceId;
     private String ackInstructions;
 
     @Override
-    public void init(Map<String, Object> settings) {
-        super.init(settings);
+    public void init(Map<String, Object> settings) throws TigaseDBException {
+        super.init(log, settings);
         deviceId = (String) settings.get("device");
         ackInstructions = "A SMS with a verification code will be sent to emulator " + deviceId + ".";
     }
@@ -45,15 +52,8 @@ public class AndroidEmulatorProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public void sendVerificationCode(String phoneNumber, String code) throws IOException {
-        StringBuilder cmd = new StringBuilder("adb -s ")
-            .append(deviceId)
-            .append(" emu sms send ")
-            .append(senderId)
-            .append(' ')
-            .append(code);
-
-        Runtime.getRuntime().exec(cmd.toString());
+    protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
+        Runtime.getRuntime().exec("adb -s " + deviceId + " emu sms send " + senderId + ' ' + code);
     }
 
 }

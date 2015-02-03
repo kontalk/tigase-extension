@@ -63,7 +63,7 @@ public class KontalkAuth {
     }
 
     public static JID toJID(String phone, String domain) {
-        return JID.jidInstanceNS(toUserId(phone), domain);
+        return JID.jidInstanceNS(toUserId(phone), domain, null);
     }
 
     public static BareJID toBareJID(String phone, String domain) {

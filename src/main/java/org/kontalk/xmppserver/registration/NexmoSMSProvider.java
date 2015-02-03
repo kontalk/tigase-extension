@@ -56,13 +56,7 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
     }
 
     @Override
-    public String startVerification(XMPPResourceConnection session, String phoneNumber)
-            throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-
-        // generate verification code
-        BareJID jid = KontalkAuth.toBareJID(phoneNumber, session.getDomainAsJID().getDomain());
-        String code = super.generateVerificationCode(jid);
-
+    protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
         NexmoSmsClient client;
         try {
             client = new NexmoSmsClient(username, password);
@@ -90,15 +84,6 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
         else {
             throw new IOException("Unknown response");
         }
-
-        // no request ID provided
-        return jid.toString();
     }
 
-    @Override
-    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof)
-            throws IOException, TigaseDBException {
-        BareJID jid = BareJID.bareJIDInstanceNS(requestId);
-        return super.verify(jid, proof);
-    }
 }

@@ -18,9 +18,12 @@
 
 package org.kontalk.xmppserver.registration;
 
+import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
+import tigase.xmpp.XMPPResourceConnection;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Timer;
@@ -41,7 +44,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
 
     private VerificationRepository repo;
 
-    public void init(Logger log, Map<String, Object> settings) throws TigaseDBException {
+    protected void init(Logger log, Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
 
         this.log = log;
@@ -74,12 +77,37 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         }
     }
 
-    protected String generateVerificationCode(BareJID jid)
+    @Override
+    public String startVerification(XMPPResourceConnection session, String phoneNumber)
+            throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+
+        // generate verification code
+        BareJID jid = KontalkAuth.toBareJID(phoneNumber, session.getDomainAsJID().getDomain());
+        String code = generateVerificationCode(jid);
+
+        // call implementation
+        sendVerificationCode(phoneNumber, code);
+
+        // request id will be used to map back JID
+        return jid.toString();
+    }
+
+    @Override
+    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof)
+            throws IOException, TigaseDBException {
+        BareJID jid = BareJID.bareJIDInstanceNS(requestId);
+        return verify(jid, proof);
+    }
+
+    /** This will be called in the implementation to do the actual sending. */
+    abstract protected void sendVerificationCode(String phoneNumber, String code) throws IOException;
+
+    private String generateVerificationCode(BareJID jid)
             throws VerificationRepository.AlreadyRegisteredException, TigaseDBException {
         return repo.generateVerificationCode(jid);
     }
 
-    protected boolean verify(BareJID jid, String code) throws TigaseDBException {
+    private boolean verify(BareJID jid, String code) throws TigaseDBException {
         return repo.verifyCode(jid, code);
     }
 

@@ -18,10 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
-import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
-import tigase.xmpp.BareJID;
-import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
 import java.util.Map;

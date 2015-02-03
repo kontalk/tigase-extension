@@ -21,10 +21,7 @@ package org.kontalk.xmppserver.registration;
 import com.nexmo.messaging.sdk.NexmoSmsClient;
 import com.nexmo.messaging.sdk.SmsSubmissionResult;
 import com.nexmo.messaging.sdk.messages.TextMessage;
-import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
-import tigase.xmpp.BareJID;
-import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
 import java.util.Map;

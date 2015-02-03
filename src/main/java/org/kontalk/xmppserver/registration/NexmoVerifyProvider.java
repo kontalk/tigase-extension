@@ -18,10 +18,8 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.messaging.sdk.NexmoSmsClient;
-import com.nexmo.messaging.sdk.SmsSubmissionResult;
-import com.nexmo.messaging.sdk.messages.TextMessage;
 import tigase.db.TigaseDBException;
+import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,11 +27,11 @@ import java.util.logging.Logger;
 
 
 /**
- * Verification provider for Nexmo using SMS API.
+ * Verification provider for Nexmo using verification API.
  * @author Daniele Ricci
  */
-public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
-    private static Logger log = Logger.getLogger(NexmoSMSProvider.class.getName());
+public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
+    private static Logger log = Logger.getLogger(NexmoVerifyProvider.class.getName());
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
@@ -42,7 +40,7 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
-        super.init(log, settings);
+        super.init(settings);
         username = (String) settings.get("username");
         password = (String) settings.get("password");
     }
@@ -53,34 +51,15 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
     }
 
     @Override
-    protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
-        NexmoSmsClient client;
-        try {
-            client = new NexmoSmsClient(username, password);
-        }
-        catch (Exception e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
+    public String startVerification(XMPPResourceConnection session, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+        // TODO
+        return null;
+    }
 
-        TextMessage msg = new TextMessage(senderId, phoneNumber, code);
-
-        SmsSubmissionResult[] results;
-        try {
-            results = client.submitMessage(msg);
-        }
-        catch (Exception e) {
-            throw new IOException("Error sending SMS", e);
-        }
-
-        if (results != null && results.length > 0) {
-            SmsSubmissionResult result = results[0];
-            if (result.getStatus() != SmsSubmissionResult.STATUS_OK) {
-                throw new IOException("SMS was not sent (" + result.getErrorText() + ")");
-            }
-        }
-        else {
-            throw new IOException("Unknown response");
-        }
+    @Override
+    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException {
+        // TODO
+        return false;
     }
 
 }

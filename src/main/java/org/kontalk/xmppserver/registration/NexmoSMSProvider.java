@@ -21,16 +21,22 @@ package org.kontalk.xmppserver.registration;
 import com.nexmo.messaging.sdk.NexmoSmsClient;
 import com.nexmo.messaging.sdk.SmsSubmissionResult;
 import com.nexmo.messaging.sdk.messages.TextMessage;
+import org.kontalk.xmppserver.auth.KontalkAuth;
+import tigase.db.TigaseDBException;
+import tigase.xmpp.BareJID;
+import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.logging.Logger;
 
 
 /**
  * Verification provider for Nexmo.
  * @author Daniele Ricci
  */
-public class NexmoProvider extends AbstractSMSVerificationProvider {
+public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
+    private static Logger log = Logger.getLogger(NexmoSMSProvider.class.getName());
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
@@ -38,8 +44,8 @@ public class NexmoProvider extends AbstractSMSVerificationProvider {
     private String password;
 
     @Override
-    public void init(Map<String, Object> settings) {
-        super.init(settings);
+    public void init(Map<String, Object> settings) throws TigaseDBException {
+        super.init(log, settings);
         username = (String) settings.get("username");
         password = (String) settings.get("password");
     }
@@ -50,7 +56,13 @@ public class NexmoProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public void sendVerificationCode(String phoneNumber, String code) throws IOException {
+    public String startVerification(XMPPResourceConnection session, String phoneNumber)
+            throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+
+        // generate verification code
+        BareJID jid = KontalkAuth.toBareJID(phoneNumber, session.getDomainAsJID().getDomain());
+        String code = super.generateVerificationCode(jid);
+
         NexmoSmsClient client;
         try {
             client = new NexmoSmsClient(username, password);
@@ -78,6 +90,15 @@ public class NexmoProvider extends AbstractSMSVerificationProvider {
         else {
             throw new IOException("Unknown response");
         }
+
+        // no request ID provided
+        return jid.toString();
     }
 
+    @Override
+    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof)
+            throws IOException, TigaseDBException {
+        BareJID jid = BareJID.bareJIDInstanceNS(requestId);
+        return super.verify(jid, proof);
+    }
 }

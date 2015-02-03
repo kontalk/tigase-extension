@@ -18,6 +18,8 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.db.TigaseDBException;
+
 import java.util.Map;
 
 
@@ -30,7 +32,7 @@ public abstract class AbstractSMSVerificationProvider implements PhoneNumberVeri
     protected String senderId;
 
     @Override
-    public void init(Map<String, Object> settings) {
+    public void init(Map<String, Object> settings) throws TigaseDBException {
         senderId = (String) settings.get("sender");
     }
 

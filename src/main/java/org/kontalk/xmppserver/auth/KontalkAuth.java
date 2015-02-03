@@ -18,11 +18,16 @@
 
 package org.kontalk.xmppserver.auth;
 
+import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.KontalkKeyring;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
+import tigase.xmpp.JID;
 import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.XMPPResourceConnection;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Kontalk authentication stuff.
@@ -52,5 +57,34 @@ public class KontalkAuth {
     public static KontalkKeyring getKeyring(XMPPResourceConnection session, String serverFingerprint) {
         return KontalkKeyring.getInstance(session.getDomainAsJID().toString(), serverFingerprint);
     }
+
+    public static String toUserId(String phone) {
+        return sha1(phone);
+    }
+
+    public static JID toJID(String phone, String domain) {
+        return JID.jidInstanceNS(toUserId(phone), domain);
+    }
+
+    public static BareJID toBareJID(String phone, String domain) {
+        return BareJID.bareJIDInstanceNS(toUserId(phone), domain);
+    }
+
+    private static String sha1(String text) {
+        try {
+            MessageDigest md;
+            md = MessageDigest.getInstance("SHA-1");
+            md.update(text.getBytes(), 0, text.length());
+
+            byte[] digest = md.digest();
+            return Hex.toHexString(digest);
+        }
+        catch (NoSuchAlgorithmException e) {
+            // no SHA-1?? WWWHHHHAAAAAATTTT???!?!?!?!?!
+            throw new RuntimeException("no SHA-1 available. What the crap of a runtime do you have?");
+        }
+    }
+
+
 
 }

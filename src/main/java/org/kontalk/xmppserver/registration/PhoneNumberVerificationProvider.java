@@ -18,6 +18,9 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.db.TigaseDBException;
+import tigase.xmpp.XMPPResourceConnection;
+
 import java.io.IOException;
 import java.util.Map;
 
@@ -28,12 +31,26 @@ import java.util.Map;
  */
 public interface PhoneNumberVerificationProvider {
 
-    public void init(Map<String, Object> settings);
+    public void init(Map<String, Object> settings) throws TigaseDBException;
 
     public String getSenderId();
 
     public String getAckInstructions();
 
-    public void sendVerificationCode(String phoneNumber, String code) throws IOException;
+    /**
+     * Initiates a verification.
+     * @param phoneNumber the phone number being verified
+     * @return a request ID of some kind that you will give to {@link #endVerification}.
+     */
+    public String startVerification(XMPPResourceConnection session, String phoneNumber)
+            throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException;
+
+    /**
+     * Ends a verification.
+     * @param requestId request ID as returned by {@link #startVerification}
+     * @param proof the proof of the verification (e.g. verification code)
+     * @return true if verification succeded, false otherwise.
+     */
+    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException;
 
 }

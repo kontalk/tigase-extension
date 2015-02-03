@@ -19,15 +19,9 @@
 package org.kontalk.xmppserver;
 
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.sql.SQLException;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,7 +31,6 @@ import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
-import org.kontalk.xmppserver.registration.DataVerificationRepository;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 
 import org.kontalk.xmppserver.registration.VerificationRepository;
@@ -104,16 +97,13 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
     private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
 
-    /** Time in seconds between calls to {@link VerificationRepository#purge()}. */
-    private static final int EXPIRED_TIMEOUT = 60000;
-
     private String serverFingerprint;
-    private VerificationRepository repo;
     private PhoneNumberVerificationProvider provider;
 
     private long statsRegistrationAttempts;
     private long statsRegisteredUsers;
     private long statsInvalidRegistrations;
+    private Map<BareJID, String> requests;
 
     @Override
     public String id() {
@@ -122,27 +112,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
+        requests = new HashMap<>();
         serverFingerprint = (String) settings.get("fingerprint");
-
-        // database parameters
-        String dbUri = (String) settings.get("db-uri");
-        Object _timeout = settings.get("expire");
-        int timeout = (_timeout != null) ? (Integer) _timeout : 0;
-        try {
-            repo = new DataVerificationRepository(dbUri, timeout);
-        }
-        catch (ClassNotFoundException e) {
-            throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
-        }
-        catch (InstantiationException e) {
-            throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
-        }
-        catch (SQLException e) {
-            throw new TigaseDBException("SQL exception (uri=" + dbUri + ")", e);
-        }
-        catch (IllegalAccessException e) {
-            throw new TigaseDBException("Unknown error (uri=" + dbUri + ")", e);
-        }
 
         // registration provider
         String providerClassName = (String) settings.get("provider");
@@ -161,13 +132,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
         catch (IllegalAccessException e) {
             throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
-        }
-
-        if (timeout > 0) {
-            // create a scheduler for our own use
-            Timer timer = new Timer(id() + " tasks", true);
-            // setup looping task for verification codes expiration
-            timer.scheduleAtFixedRate(new PurgeTask(repo), EXPIRED_TIMEOUT, EXPIRED_TIMEOUT);
         }
     }
 
@@ -237,7 +201,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 // verify user id
                                 BareJID jid = verifyPublicKey(session, key);
 
-                                if (verifyCode(jid, code)) {
+                                if (verifyCode(session, jid, code)) {
                                     byte[] signedKey = signPublicKey(session, publicKeyData);
 
                                     Packet response = register(session, packet, jid, key.getFingerprint(), signedKey);
@@ -354,14 +318,22 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         log.log(Level.FINEST, "Registering phone number: {0}", phone);
 
-        // generate userid from phone number
-        String userId = generateUserId(phone);
-        BareJID jid = BareJID.bareJIDInstanceNS(userId, session.getDomainAsJID().getDomain());
-
-        // generate verification code
-        String code;
+        BareJID jid = KontalkAuth.toBareJID(phone, session.getDomainAsJID().getDomain());
         try {
-            code = generateVerificationCode(jid);
+            String requestId = provider.startVerification(session, phone);
+            if (requestId != null) {
+                requests.put(jid, requestId);
+            }
+            else {
+                requests.remove(jid);
+            }
+            return packet.okResult(prepareSMSResponseForm(provider.getSenderId()), 0);
+        }
+        catch (IOException e) {
+            // some kind of error
+            statsInvalidRegistrations++;
+            log.log(Level.WARNING, "Failed to send verification code for: {0}", jid);
+            return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to send SMS.", true);
         }
         catch (VerificationRepository.AlreadyRegisteredException e) {
             // throttling registrations
@@ -372,19 +344,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     Authorization.SERVICE_UNAVAILABLE.getCondition(),
                     "Too many attempts.",
                     true);
-        }
-
-        // send SMS to phone number
-        try {
-            provider.sendVerificationCode(phone, code);
-
-            return packet.okResult(prepareSMSResponseForm(provider.getSenderId()), 0);
-        }
-        catch (IOException e) {
-            // throttling registrations
-            statsInvalidRegistrations++;
-            log.log(Level.WARNING, "Failed to send verification code for: {0}", jid);
-            return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to send SMS.", true);
         }
     }
 
@@ -442,15 +401,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return util.format(phone, PhoneNumberUtil.PhoneNumberFormat.E164);
     }
 
-    private String generateUserId(String phone) {
-        return sha1(phone);
-    }
-
-    private String generateVerificationCode(BareJID jid)
-            throws VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        return repo.generateVerificationCode(jid);
-    }
-
     private BareJID parseUserID(PGPPublicKey publicKey) throws PGPException {
         PGPUserID uid = PGPUtils.parseUserID(publicKey);
         if (uid == null)
@@ -473,8 +423,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         throw new PGPException("Invalid email identifier");
     }
 
-    private boolean verifyCode(BareJID jid, String code) throws TigaseDBException {
-        return repo.verifyCode(jid, code);
+    private boolean verifyCode(XMPPResourceConnection session, BareJID jid, String code) throws TigaseDBException, IOException {
+        String requestId = requests.get(jid);
+        return provider.endVerification(session, requestId, code);
     }
 
     private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {
@@ -484,21 +435,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private KontalkKeyring getKeyring(XMPPResourceConnection session) {
         return KontalkAuth.getKeyring(session, serverFingerprint);
-    }
-
-    private static String sha1(String text) {
-        try {
-            MessageDigest md;
-            md = MessageDigest.getInstance("SHA-1");
-            md.update(text.getBytes(), 0, text.length());
-
-            byte[] digest = md.digest();
-            return Hex.toHexString(digest);
-        }
-        catch (NoSuchAlgorithmException e) {
-            // no SHA-1?? WWWHHHHAAAAAATTTT???!?!?!?!?!
-            throw new RuntimeException("no SHA-1 available. What the crap of a runtime do you have?");
-        }
     }
 
     @Override
@@ -543,28 +479,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         list.add(getComponentInfo().getName(), "Registration attempts", statsRegistrationAttempts, Level.INFO);
         list.add(getComponentInfo().getName(), "Registered users", statsRegisteredUsers, Level.INFO);
         list.add(getComponentInfo().getName(), "Invalid registrations", statsInvalidRegistrations, Level.INFO);
-    }
-
-    /** A task to purge old registration entries. */
-    private static final class PurgeTask extends TimerTask {
-        private VerificationRepository repo;
-
-        public PurgeTask(VerificationRepository repo) {
-            this.repo = repo;
-        }
-
-        @Override
-        public void run() {
-            try {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.finest("Purging expired registration entries.");
-                }
-                repo.purge();
-            }
-            catch (TigaseDBException e) {
-                log.log(Level.WARNING, "unable to purge old registration entries");
-            }
-        }
     }
 
 }

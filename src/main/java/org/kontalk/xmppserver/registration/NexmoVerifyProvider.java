@@ -18,9 +18,14 @@
 
 package org.kontalk.xmppserver.registration;
 
+import com.nexmo.messaging.sdk.SmsSubmissionResult;
+import com.nexmo.verify.sdk.NexmoVerifyClient;
+import com.nexmo.verify.sdk.VerifyResult;
+import org.xml.sax.SAXException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -37,12 +42,14 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     private String username;
     private String password;
+    private String brand;
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
         username = (String) settings.get("username");
         password = (String) settings.get("password");
+        brand = (String) settings.get("brand");
     }
 
     @Override
@@ -52,13 +59,40 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public String startVerification(XMPPResourceConnection session, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        // TODO
-        return null;
+        NexmoVerifyClient client;
+
+        try {
+            client = new NexmoVerifyClient(username, password);
+        }
+        catch (ParserConfigurationException e) {
+            throw new IOException("Error initializing Nexmo client", e);
+        }
+
+        VerifyResult result;
+
+        try {
+            result = client.verify(phoneNumber, brand, senderId, VerificationRepository.VERIFICATION_CODE_LENGTH, null);
+        }
+        catch (SAXException e) {
+            throw new IOException("Error requesting verification", e);
+        }
+
+        if (result != null) {
+            if (result.getStatus() == VerifyResult.STATUS_OK) {
+                return result.getRequestId();
+            }
+            else {
+                throw new IOException("verification did not start (" + result.getErrorText() + ")");
+            }
+        }
+        else {
+            throw new IOException("Unknown response");
+        }
     }
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException {
-        // TODO
+        // TODO verify check
         return false;
     }
 

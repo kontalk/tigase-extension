@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver.registration;
 
 import com.nexmo.messaging.sdk.SmsSubmissionResult;
+import com.nexmo.verify.sdk.CheckResult;
 import com.nexmo.verify.sdk.NexmoVerifyClient;
 import com.nexmo.verify.sdk.VerifyResult;
 import org.xml.sax.SAXException;
@@ -92,8 +93,38 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException {
-        // TODO verify check
-        return false;
+        NexmoVerifyClient client;
+
+        try {
+            client = new NexmoVerifyClient(username, password);
+        }
+        catch (ParserConfigurationException e) {
+            throw new IOException("Error initializing Nexmo client", e);
+        }
+
+        CheckResult result;
+
+        try {
+            result = client.check(requestId, proof);
+        }
+        catch (SAXException e) {
+            throw new IOException("Error requesting verification", e);
+        }
+
+        if (result != null) {
+            if (result.getStatus() == CheckResult.STATUS_OK) {
+                return true;
+            }
+            else if (result.getStatus() == CheckResult.STATUS_INVALID_CODE) {
+                return false;
+            }
+            else {
+                throw new IOException("verification did not start (" + result.getErrorText() + ")");
+            }
+        }
+        else {
+            throw new IOException("Unknown response");
+        }
     }
 
 }

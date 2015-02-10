@@ -93,8 +93,8 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
                 log.log(Level.FINEST, "Checking outbound packet: {0}", res);
             }
 
-            // Always allow presence unavailable to go, privacy lists packets and
-            // all other which are allowed by privacy rules
+            // Always allow presence unavailable to go, blocking command packets and
+            // all other which are allowed by block list rules
             if ((res.getType() == StanzaType.unavailable) ||
                     res.isXMLNSStaticStr(IQ_BLOCKLIST_PATH, XMLNS) ||
                     res.isXMLNSStaticStr(IQ_BLOCK_PATH, XMLNS) ||
@@ -114,13 +114,20 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
         try {
             // If this is a preprocessing phase, always allow all packets to
             // make it possible for the client to communicate with the server.
+            /*
             if (session.getConnectionId().equals(packet.getPacketFrom())) {
+                return true;
+            }
+            */
+
+            // allow packets for clients originated by the server
+            if (packet.getStanzaFrom() == null && session.getJID().equals(packet.getStanzaTo())) {
                 return true;
             }
 
             // allow packets without from attribute and packets with from attribute same as domain name
-            if ((packet.getStanzaFrom() == null) || ((packet.getStanzaFrom().getLocalpart() ==
-                    null) && session.getBareJID().getDomain().equals(packet.getStanzaFrom()
+            if (/*(packet.getStanzaFrom() == null) || */(packet.getStanzaFrom() != null &&
+                    (packet.getStanzaFrom().getLocalpart() == null) && session.getBareJID().getDomain().equals(packet.getStanzaFrom()
                     .getDomain()))) {
                 return true;
             }
@@ -133,7 +140,7 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
             }
 
             BareJID sessionUserId = session.getBareJID();
-            BareJID jid = packet.getStanzaFrom().getBareJID();
+            BareJID jid = packet.getStanzaFrom() != null ? packet.getStanzaFrom().getBareJID() : null;
 
             if ((jid == null) || sessionUserId.equals(jid)) {
                 jid = packet.getStanzaTo().getBareJID();
@@ -143,9 +150,11 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
             if (list != null && list.contains(jid))
                 return false;
         }
+        /*
         catch (NoConnectionIdException e) {
-            // always allow, this is server dummy session
+            // always allow, this is a server dummy session
         }
+        */
         catch (NotAuthorizedException e) {
             // ignored
         }

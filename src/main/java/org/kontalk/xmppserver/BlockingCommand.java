@@ -370,9 +370,11 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
                 }
 
                 List<Element> children = result.getChildren();
-                list = new HashSet<>(children.size());
-                for (Element item : children) {
-                    list.add(BareJID.bareJIDInstanceNS(item.getAttributeStaticStr("jid")));
+                if (children != null) {
+                    list = new HashSet<>(children.size());
+                    for (Element item : children) {
+                        list.add(BareJID.bareJIDInstanceNS(item.getAttributeStaticStr("jid")));
+                    }
                 }
             }
         }

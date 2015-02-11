@@ -13,7 +13,7 @@ if [ "$BRANCH" == "" ]; then
 fi
 echo "On branch ${BRANCH}"
 
-REPOS="gnupg-for-java tigase-utils"
+REPOS="gnupg-for-java"
 
 for REPO in ${REPOS}; do
   echo "Building ${REPO}"

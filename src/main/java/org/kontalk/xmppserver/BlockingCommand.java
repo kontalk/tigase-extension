@@ -58,7 +58,7 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
     };
 
     private static final Element[] DISCO_FEATURES = {new Element("feature", new String[]{"var"},
-            new String[]{"urn:xmpp:blocking"})};
+            new String[]{XMLNS})};
 
     private static final String BLOCKLIST = "blocklist";
 

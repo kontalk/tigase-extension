@@ -33,7 +33,7 @@ import java.util.logging.Logger;
  * XEP-0352: Client State Indication
  * @author Daniele Ricci
  */
-public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPreprocessorIfc {
+public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc {
     private static Logger log = Logger.getLogger(ClientStateIndication.class.getName());
 
     private static final String XMLNS = "urn:xmpp:csi:0";
@@ -56,20 +56,28 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     @Override
     public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
         if (packet.getElemName().equals(ELEM_ACTIVE)) {
-            deactivate(session, results);
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Activating session {0}", session);
+            }
+            setActive(session, results);
+            packet.processedBy(ID);
         }
         else if (packet.getElemName().equals(ELEM_INACTIVE)) {
-            activate(session);
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Deactivating session {0}", session);
+            }
+            setInactive(session);
+            packet.processedBy(ID);
         }
     }
 
     /** Activates client state indication (that is, client going to inactive state). */
-    private void activate(XMPPResourceConnection session) {
+    private void setInactive(XMPPResourceConnection session) {
         session.putSessionData(SESSION_QUEUE, new InternalQueue());
     }
 
     /** Deactivates client state indication (that is, client going to active state). */
-    private void deactivate(XMPPResourceConnection session, Queue<Packet> results) {
+    private void setActive(XMPPResourceConnection session, Queue<Packet> results) {
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
             return;
@@ -84,28 +92,35 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     }
 
     @Override
-    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
-        final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
-        if (queue == null)
-            return false;
+    public void filter(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results) {
+        if ((session == null) || (results == null) || (results.size() == 0)) {
+            return;
+        }
 
-        try {
-            synchronized (queue) {
-                if (session.isUserId(packet.getStanzaTo().getBareJID())) {
-                    if (log.isLoggable(Level.FINEST)) {
-                        log.log(Level.FINEST, "Calling method: {0}, for packet={1}, for session={2}",
-                                new Object[]{"processToUserPacket",
-                                        packet, session});
+        final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
+        if (queue == null) {
+            return;
+        }
+
+        for (Iterator<Packet> it = results.iterator(); it.hasNext(); ) {
+            Packet res = it.next();
+            try {
+                synchronized (queue) {
+                    if (res.getStanzaTo() != null && session.isUserId(res.getStanzaTo().getBareJID())) {
+                        if (log.isLoggable(Level.FINEST)) {
+                            log.log(Level.FINEST, "Checking packet {0} for session {1}",
+                                    new Object[]{packet, session});
+                        }
+                        if (filterPacket(res, queue)) {
+                            it.remove();
+                        }
                     }
-                    return filterPacket(packet, queue);
                 }
             }
+            catch (NotAuthorizedException ignored) {
+                // ignore
+            }
         }
-        catch (NotAuthorizedException ignored) {
-            // ignore
-        }
-
-        return false;
     }
 
     private boolean filterPacket(Packet packet, InternalQueue queue) {
@@ -113,6 +128,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
                 (packet.getType() == null ||
                 packet.getType() == StanzaType.available ||
                 packet.getType() == StanzaType.unavailable)) {
+
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Filtering packet {0}", packet);
+            }
             queue.put(packet.getStanzaFrom(), (Presence) packet);
             return true;
         }
@@ -141,14 +160,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     @Override
     public Element[] supStreamFeatures(XMPPResourceConnection session) {
-        if (log.isLoggable(Level.FINEST) && (session != null)) {
-            log.finest("VHostItem: " + session.getDomain());
-        }
-        if (session != null) {
-            return FEATURES;
-        } else {
-            return null;
-        }
+        return (session != null) ? FEATURES : null;
     }
 
     /** A typedef for the internal stanza queue for CSI. */

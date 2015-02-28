@@ -45,6 +45,11 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
     }
 
     @Override
+    protected boolean shouldIncrementIncoming(XMPPIOService service, Packet packet) {
+        return !ClientStateIndication.isElement(packet);
+    }
+
+    @Override
     protected OutQueue newOutQueue() {
         return new MyOutQueue();
     }
@@ -54,7 +59,7 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
 
         @Override
         public void append(Packet packet) {
-            if (!packet.wasProcessedBy(XMLNS) && !ClientStateIndication.isElement(packet)) {
+            if (!packet.wasProcessedBy(XMLNS)) {
                 if (shouldRequestAck(packet)) {
                     messagesWaiting++;
                 }

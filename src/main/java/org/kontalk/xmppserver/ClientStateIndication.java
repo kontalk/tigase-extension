@@ -163,6 +163,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         return (session != null) ? FEATURES : null;
     }
 
+    static boolean isElement(Packet packet) {
+        return packet.getElemName() == ELEM_ACTIVE || packet.getElemName() == ELEM_INACTIVE;
+    }
+
     /** A typedef for the internal stanza queue for CSI. */
     private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
     }

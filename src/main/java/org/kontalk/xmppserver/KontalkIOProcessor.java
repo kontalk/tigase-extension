@@ -54,7 +54,7 @@ public class KontalkIOProcessor extends StreamManagementIOProcessor {
 
         @Override
         public void append(Packet packet) {
-            if (!packet.wasProcessedBy(XMLNS)) {
+            if (!packet.wasProcessedBy(XMLNS) && !ClientStateIndication.isElement(packet)) {
                 if (shouldRequestAck(packet)) {
                     messagesWaiting++;
                 }

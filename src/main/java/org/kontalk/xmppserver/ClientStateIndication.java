@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver;
 
 import tigase.db.NonAuthUserRepository;
+import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.server.Presence;
 import tigase.xml.Element;
@@ -50,6 +51,8 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     };
 
     private static final Element[] FEATURES = { new Element("csi", new String[] { "xmlns" }, new String[] { XMLNS }) };
+
+    private static final String CHATSTATE_XMLNS = "http://jabber.org/protocol/chatstates";
 
     private static final String SESSION_QUEUE = ID + ":queue";
 
@@ -124,18 +127,42 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     }
 
     private boolean filterPacket(Packet packet, InternalQueue queue) {
-        if (packet.getElemName() == Presence.ELEM_NAME &&
-                (packet.getType() == null ||
-                packet.getType() == StanzaType.available ||
-                packet.getType() == StanzaType.unavailable)) {
-
+        if (isPresence(packet) || isDeliveryReceipt(packet)) {
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "Filtering packet {0}", packet);
+                log.log(Level.FINEST, "Delaying packet {0}", packet);
             }
             queue.put(packet.getStanzaFrom(), (Presence) packet);
             return true;
         }
+
+        if (isChatState(packet)) {
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Filtering packet {0}", packet);
+            }
+            return true;
+        }
+
         return false;
+    }
+
+    private boolean isPresence(Packet packet) {
+        return packet.getElemName() == Presence.ELEM_NAME &&
+                (packet.getType() == null ||
+                packet.getType() == StanzaType.available ||
+                packet.getType() == StanzaType.unavailable);
+    }
+
+    private boolean isDeliveryReceipt(Packet packet) {
+        return packet.getElemName() == Message.ELEM_NAME &&
+                packet.getElement().getChild("received", "urn:xmpp:receipts") != null;
+    }
+
+    private boolean isChatState(Packet packet) {
+        return packet.getElemName() == Message.ELEM_NAME &&
+                (packet.getElement().getChild("inactive", CHATSTATE_XMLNS) == null &&
+                packet.getElement().getChild("gone", CHATSTATE_XMLNS) == null &&
+                packet.getElement().getChild("composing", CHATSTATE_XMLNS) == null &&
+                packet.getElement().getChild("paused", CHATSTATE_XMLNS) == null);
     }
 
     @Override

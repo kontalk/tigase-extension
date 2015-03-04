@@ -159,10 +159,11 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     private boolean isChatState(Packet packet) {
         return packet.getElemName() == Message.ELEM_NAME &&
-                (packet.getElement().getChild("inactive", CHATSTATE_XMLNS) == null &&
-                packet.getElement().getChild("gone", CHATSTATE_XMLNS) == null &&
-                packet.getElement().getChild("composing", CHATSTATE_XMLNS) == null &&
-                packet.getElement().getChild("paused", CHATSTATE_XMLNS) == null);
+                packet.getElement().getChild("body") == null &&
+                (packet.getElement().getChild("inactive", CHATSTATE_XMLNS) != null ||
+                packet.getElement().getChild("gone", CHATSTATE_XMLNS) != null ||
+                packet.getElement().getChild("composing", CHATSTATE_XMLNS) != null ||
+                packet.getElement().getChild("paused", CHATSTATE_XMLNS) != null);
     }
 
     @Override

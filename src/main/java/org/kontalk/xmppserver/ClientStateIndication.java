@@ -100,7 +100,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     @Override
     public void filter(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results) {
-        if ((session == null) || (results == null) || (results.size() == 0)) {
+        if ((session == null) || (!session.isAuthorized()) || (results == null) || (results.size() == 0)) {
             return;
         }
 
@@ -113,7 +113,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             Packet res = it.next();
             try {
                 synchronized (queue) {
-                    if (res.getStanzaTo() != null && session.isUserId(res.getStanzaTo().getBareJID())) {
+                    if (res.getStanzaTo() != null && session.getJID().equals(res.getStanzaTo())) {
                         if (log.isLoggable(Level.FINEST)) {
                             log.log(Level.FINEST, "Checking packet {0} for session {1}",
                                     new Object[]{packet, session});

@@ -88,6 +88,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         synchronized (queue) {
             // send all pending presence data
             results.addAll(queue.values());
+            // send all pending messages
+            List<Message> msgs = queue.getMessages();
+            if (msgs != null && msgs.size() > 0)
+                results.addAll(msgs);
             // destroy and remove stanza store
             queue.clear();
             session.removeSessionData(SESSION_QUEUE);
@@ -127,11 +131,19 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     }
 
     private boolean filterPacket(Packet packet, InternalQueue queue) {
-        if (isPresence(packet) || isDeliveryReceipt(packet)) {
+        if (isPresence(packet)) {
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "Delaying packet {0}", packet);
+                log.log(Level.FINEST, "Delaying presence {0}", packet);
             }
             queue.put(packet.getStanzaFrom(), (Presence) packet);
+            return true;
+        }
+
+        if (isDeliveryReceipt(packet)) {
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Delaying delivery receipt {0}", packet);
+            }
+            queue.putMessage((Message) packet);
             return true;
         }
 
@@ -197,6 +209,26 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** A typedef for the internal stanza queue for CSI. */
     private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
+        private List<Message> messages;
+
+        public void putMessage(Message packet) {
+            if (messages == null) {
+                messages = new LinkedList<>();
+            }
+            messages.add(packet);
+        }
+
+        public List<Message> getMessages() {
+            return messages;
+        }
+
+        @Override
+        public void clear() {
+            super.clear();
+            if (messages != null) {
+                messages.clear();
+            }
+        }
     }
 
 }

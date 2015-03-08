@@ -71,8 +71,6 @@ public class ServerListCommand implements AdHocCommand {
             }
         }
 
-        list.addChild(new Element("item", new String[]{"node",}, new String[]{"prime.kontalk.net"}));
-
         response.getElements().add(list);
         response.completeSession();
     }

@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver;
 
+import org.kontalk.xmppserver.probe.DataServerlistRepository;
 import org.kontalk.xmppserver.probe.ServerlistRepository;
 import tigase.component.AbstractComponent;
 import tigase.component.AbstractContext;
@@ -39,15 +40,16 @@ import java.util.Map;
  */
 public class NetworkComponent extends AbstractComponent<NetworkContext> {
 
-    private static class NetworkContextImpl extends AbstractContext implements NetworkContext {
+    private DataServerlistRepository serverListRepo;
+
+    private class NetworkContextImpl extends AbstractContext implements NetworkContext {
         public NetworkContextImpl(AbstractComponent<?> component) {
             super(component);
         }
 
         @Override
         public List<ServerlistRepository.ServerInfo> getServerList() {
-            // TODO
-            return null;
+            return serverListRepo.getList();
         }
     }
 
@@ -97,8 +99,19 @@ public class NetworkComponent extends AbstractComponent<NetworkContext> {
         super.setProperties(props);
 
         AdHocCommandModule<?> adHocCommandModule = getModuleProvider().getModule(AdHocCommandModule.ID);
+        if (adHocCommandModule != null) {
+            adHocCommandModule.register(new ServerListCommand(context));
+        }
 
-        adHocCommandModule.register(new ServerListCommand(context));
+        if (serverListRepo == null) {
+            try {
+                serverListRepo = new DataServerlistRepository((String) props.get("db-uri"));
+                serverListRepo.reload();
+            }
+            catch (Exception e) {
+                throw new ConfigurationException("error loading server list", e);
+            }
+        }
     }
 
 }

@@ -28,6 +28,7 @@ import java.util.logging.Logger;
 
 import org.kontalk.xmppserver.push.*;
 
+import tigase.annotations.TODO;
 import tigase.conf.ConfigurationException;
 import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
@@ -46,6 +47,7 @@ import tigase.xmpp.StanzaType;
  * Supports only GCM.
  * @author Daniele Ricci
  */
+@TODO(note="Support for multiple registrations per user")
 public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
     private static Logger log = Logger.getLogger(KontalkLegacyPushComponent.class.getName());
@@ -82,6 +84,23 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                     packet.processedBy(getComponentInfo().getName());
                     addOutPacket(packet.okResult((String) null, 0));
                 }
+                return;
+            }
+
+            Element unregister = packet.getElement().getChild("unregister", XMLNS);
+            if (unregister != null && provider.getName().equals(unregister.getAttributeStaticStr("provider"))) {
+                BareJID user = packet.getStanzaFrom().getBareJID();
+                log.log(Level.FINE, "Unregistering user {0} from push notifications", user);
+                provider.unregister(user);
+
+                try {
+                    repository.unregister(user, provider.getName());
+                } catch (TigaseDBException e) {
+                    log.log(Level.INFO, "Database error", e);
+                }
+
+                packet.processedBy(getComponentInfo().getName());
+                addOutPacket(packet.okResult((String) null, 0));
             }
         }
 

@@ -41,6 +41,7 @@ public interface PushProvider {
     public String getDescription();
 
     public void register(BareJID jid, String registrationId);
+    public void unregister(BareJID jid);
 
     public void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException;
 

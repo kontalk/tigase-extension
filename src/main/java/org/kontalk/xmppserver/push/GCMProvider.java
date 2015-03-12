@@ -80,6 +80,11 @@ public class GCMProvider implements PushProvider {
     }
 
     @Override
+    public void unregister(BareJID jid) {
+        // nothing to do
+    }
+
+    @Override
     public void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException {
         if (gcmSender == null) {
             log.log(Level.WARNING, "GCM provider not configured correctly.");

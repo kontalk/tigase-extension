@@ -67,7 +67,7 @@ public class DataPushRepository implements PushRepository {
 
     @Override
     public void register(BareJID jid, String provider, String registrationId) throws TigaseDBException {
-        PreparedStatement stm = null;
+        PreparedStatement stm;
         try {
             stm = repo.getPreparedStatement(jid, CREATE_QUERY_ID);
             stm.setString(1, jid.toString());
@@ -82,7 +82,7 @@ public class DataPushRepository implements PushRepository {
 
     @Override
     public void unregister(BareJID jid, String provider) throws TigaseDBException {
-        PreparedStatement stm = null;
+        PreparedStatement stm;
         try {
             stm = repo.getPreparedStatement(jid, DELETE_QUERY_ID);
             stm.setString(1, jid.toString());
@@ -96,7 +96,7 @@ public class DataPushRepository implements PushRepository {
 
     @Override
     public List<PushRegistrationInfo> getRegistrationInfo(BareJID jid) throws TigaseDBException {
-        PreparedStatement stm = null;
+        PreparedStatement stm;
         ResultSet rs = null;
         try {
             stm = repo.getPreparedStatement(jid, SELECT_QUERY_ID);

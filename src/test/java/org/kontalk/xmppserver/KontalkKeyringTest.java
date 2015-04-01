@@ -4,6 +4,11 @@ import org.junit.Before;
 import org.junit.Test;
 import tigase.util.Base64;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+
 import static org.junit.Assert.*;
 
 
@@ -43,20 +48,102 @@ public class KontalkKeyringTest {
 
     private static final String TEST_LEGACY_TOKEN = "owGbwMvMwCHoM9VyC+MPpTmMp02SGEJ2zd+bmJKbmVdjbO5i4GpmbuHs4mJo6eZk6WRoYeRkbGFg4mxpamzpZGJg6GZhZGTp3BHHwiDIwcDGygTSy8DFKQAzsHg3w1/Rx9eY9Mz/XOUKODthhV5fl13opUTrK78rN28vX3BOaE0SI8Ncphfmm6zEzbVrzgrdCCjLPHN2zk9WrcyYCv15jcI3tI4CAA==";
 
-    private KontalkKeyring keyring;
-
-    @Before
-    public void setUp() {
-        keyring = new KontalkKeyring("beta.kontalk.net", null);
-        String fpr = keyring.importKey(Base64.decode(TEST_PUBLIC_KEY));
-        assertNotNull(fpr);
-    }
-
     @Test
     public void testVerifyLegacyToken() throws Exception {
+        KontalkKeyring keyring = new KontalkKeyring("beta.kontalk.net", null, System.getProperty("gnupg.home"), 1);
+        String fpr = keyring.importKeyGlobal(Base64.decode(TEST_PUBLIC_KEY));
+        assertNotNull(fpr);
         KontalkUser user = keyring.verifyLegacyToken(Base64.decode(TEST_LEGACY_TOKEN), "37D0E678CDD19FB9B182B3804C9539B401F8229C");
         assertNotNull(user);
         assertNotNull(user.getJID());
         assertEquals(user.getJID().toString(), "admin@beta.kontalk.net");
     }
+
+    private KontalkKeyring createPartitionedKeyring(int partitions) {
+        return createPartitionedKeyring(null, partitions);
+    }
+
+    private KontalkKeyring createPartitionedKeyring(String fingerprint, int partitions) {
+        return new KontalkKeyring("beta.kontalk.net", fingerprint, System.getProperty("gnupg.home"), partitions);
+    }
+
+    @Test
+    public void testGetPartition() throws Exception {
+        KontalkKeyring keyring;
+
+        keyring = createPartitionedKeyring(1);
+        assertEquals(0, keyring.getPartition("37D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("07D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("47D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("A7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("F7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("C7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+
+        keyring = createPartitionedKeyring(2);
+        assertEquals(0, keyring.getPartition("37D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("27D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("07D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("A7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("F7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("B7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("67D0E678CDD19FB9B182B3804C9539B401F8229C"));
+
+        keyring = createPartitionedKeyring(4);
+        assertEquals(0, keyring.getPartition("37D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("47D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("07D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("77D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(2, keyring.getPartition("A7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(2, keyring.getPartition("97D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(3, keyring.getPartition("D7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(3, keyring.getPartition("F7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("17D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(3, keyring.getPartition("C7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(2, keyring.getPartition("B7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("27D0E678CDD19FB9B182B3804C9539B401F8229C"));
+
+        keyring = createPartitionedKeyring(8);
+        assertEquals(1, keyring.getPartition("37D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(2, keyring.getPartition("47D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("07D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(3, keyring.getPartition("77D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(5, keyring.getPartition("A7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(4, keyring.getPartition("97D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(6, keyring.getPartition("D7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(7, keyring.getPartition("F7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("17D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(6, keyring.getPartition("C7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(5, keyring.getPartition("B7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("27D0E678CDD19FB9B182B3804C9539B401F8229C"));
+
+        keyring = createPartitionedKeyring(16);
+        assertEquals(3, keyring.getPartition("37D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(4, keyring.getPartition("47D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(0, keyring.getPartition("07D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(7, keyring.getPartition("77D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(10, keyring.getPartition("A7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(9, keyring.getPartition("97D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(13, keyring.getPartition("D7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(15, keyring.getPartition("F7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(1, keyring.getPartition("17D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(12, keyring.getPartition("C7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(11, keyring.getPartition("B7D0E678CDD19FB9B182B3804C9539B401F8229C"));
+        assertEquals(2, keyring.getPartition("27D0E678CDD19FB9B182B3804C9539B401F8229C"));
+    }
+
+    @Test
+    public void testPartitioning() throws Exception {
+        KontalkKeyring keyring = createPartitionedKeyring("23C5B43F9DDA7B187FA0CF99E65EBEE86862C300", 2);
+
+        File key = new File("/home/daniele/Downloads/kontalk-public.key");
+        final byte[] buf = new byte[(int) key.length()];
+        RandomAccessFile f = new RandomAccessFile(key, "r");
+        f.readFully(buf);
+        f.close();
+
+        KontalkUser user = keyring.authenticate(buf);
+        assertNotNull(user);
+        assertTrue(keyring.postAuthenticate(user, null));
+    }
+
 }

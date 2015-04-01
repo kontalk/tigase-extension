@@ -19,18 +19,18 @@
 package org.kontalk.xmppserver;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import com.freiheit.gnupg.*;
 import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.util.encoders.Hex;
+import org.kontalk.xmppserver.pgp.PGPUtils;
 import tigase.xmpp.BareJID;
-
-import com.freiheit.gnupg.GnuPGContext;
-import com.freiheit.gnupg.GnuPGData;
-import com.freiheit.gnupg.GnuPGKey;
-import com.freiheit.gnupg.GnuPGSignature;
 
 
 /**
@@ -39,21 +39,60 @@ import com.freiheit.gnupg.GnuPGSignature;
  */
 public class KontalkKeyring {
 
+    private static final String PARTITION_FILENAME_FORMAT = ".gnupg-%d";
+    private static final int MAX_PARTITIONS = 16;
+
     private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
 
     private final String domain;
     private final String fingerprint;
-    private final GnuPGContext ctx;
+    private GnuPGContext[] contexts;
+
+    private GnuPGContext globalContext;
     private GnuPGKey secretKey;
 
     /** Use {@link #getInstance(String, String)} instead. */
-    public KontalkKeyring(String domain, String fingerprint) {
+    public KontalkKeyring(String domain, String fingerprint, String homeDir, int partitions) {
         this.domain = domain;
         this.fingerprint = fingerprint;
-        this.ctx = new GnuPGContext();
-        this.ctx.setArmor(false);
-        if (fingerprint != null)
-            this.secretKey = ctx.getKeyByFingerprint(fingerprint);
+        initPartitions(homeDir, partitions);
+
+        // use another keyring for the secret key
+        globalContext = new GnuPGContext();
+        globalContext.setArmor(false);
+        if (fingerprint != null) {
+            this.secretKey = globalContext.getKeyByFingerprint(fingerprint);
+        }
+    }
+
+    private void initPartitions(String homeDir, int partitions) {
+        if ((MAX_PARTITIONS % partitions) > 0)
+            throw new IllegalArgumentException("partitions can only split the keyspace evenly by 16");
+
+        contexts = new GnuPGContext[partitions];
+        for (int i = 0; i < partitions; i++) {
+            contexts[i] = new GnuPGContext();
+            contexts[i].setEngineInfo(contexts[i].getProtocol(),
+                    contexts[i].getFilename(),
+                    homeDir + File.separator + makePartitionName(i));
+            contexts[i].setArmor(false);
+        }
+    }
+
+    private String makePartitionName(int partition) {
+        return String.format(PARTITION_FILENAME_FORMAT, partition);
+    }
+
+    /** Returns the context to use for the given fingerprint according to keyspace partitioning. */
+    private GnuPGContext getContext(String fingerprint) {
+        return contexts[getPartition(fingerprint)];
+    }
+
+    int getPartition(String fingerprint) {
+        // this can't fail otherwise it's a bug
+        // here we use 16 to indicate hexadecimal base
+        int digit = Integer.parseInt(fingerprint.substring(0, 1), 16);
+        return (int) Math.floor(digit / (MAX_PARTITIONS/contexts.length));
     }
 
     /**
@@ -61,10 +100,11 @@ public class KontalkKeyring {
      * @param keyData public key data to check
      * @return a user instance with JID and public key fingerprint.
      */
-    public KontalkUser authenticate(byte[] keyData) {
+    public KontalkUser authenticate(byte[] keyData) throws IOException, PGPException {
         String fpr = importKey(keyData);
 
         GnuPGKey key;
+        final GnuPGContext ctx = getContext(fpr);
         synchronized (ctx) {
             key = ctx.getKeyByFingerprint(fpr);
         }
@@ -93,6 +133,7 @@ public class KontalkKeyring {
 
         // retrive old user key
         GnuPGKey oldKey;
+        GnuPGContext ctx = getContext(oldFingerprint);
         synchronized (ctx) {
             oldKey = ctx.getKeyByFingerprint(oldFingerprint);
         }
@@ -100,6 +141,7 @@ public class KontalkKeyring {
             // old key is still valid, check for timestamp
 
             GnuPGKey newKey;
+            ctx = getContext(user.getFingerprint());
             synchronized (ctx) {
                 newKey = ctx.getKeyByFingerprint(user.getFingerprint());
             }
@@ -115,9 +157,10 @@ public class KontalkKeyring {
      * Imports the given revoked key and checks if fingerprint matches and
      * key is revoked correctly.
      */
-    public boolean revoked(byte[] keyData, String fingerprint) {
+    public boolean revoked(byte[] keyData, String fingerprint) throws IOException, PGPException {
         String fpr = importKey(keyData);
         GnuPGKey key;
+        GnuPGContext ctx = getContext(fpr);
         synchronized (ctx) {
             key = ctx.getKeyByFingerprint(fpr);
         }
@@ -139,8 +182,8 @@ public class KontalkKeyring {
                     return null;
 
                 GnuPGKey skey;
-                synchronized (ctx) {
-                    skey = ctx.getKeyByFingerprint(sig.getKeyID());
+                synchronized (globalContext) {
+                    skey = globalContext.getKeyByFingerprint(sig.getKeyID());
                 }
                 if (skey != null && skey.getFingerprint().equalsIgnoreCase(fingerprint))
                     return jid;
@@ -153,6 +196,7 @@ public class KontalkKeyring {
 
     public byte[] exportKey(String fingerprint) throws IOException {
         GnuPGData data;
+        GnuPGContext ctx = getContext(fingerprint);
         synchronized (ctx) {
             data = ctx.createDataObject();
             ctx.export(fingerprint, 0, data);
@@ -179,15 +223,16 @@ public class KontalkKeyring {
 
     // TODO this needs to be implemented in Java
     public byte[] signKey(byte[] keyData) throws IOException, PGPException {
-        String fpr = importKey(keyData);
+        String fpr = importKeyGlobal(keyData);
 
         if (fpr != null) {
             GnuPGKey key;
+            GnuPGContext ctx = getContext(fpr);
             synchronized (ctx) {
                 key = ctx.getKeyByFingerprint(fpr);
             }
             if (key != null) {
-                StringBuilder cmd = new StringBuilder("gpg --yes --batch -u ")
+                StringBuilder cmd = new StringBuilder("gpg2 --yes --batch -u ")
                         .append(fingerprint)
                         .append(" --sign-key ")
                         .append(fpr);
@@ -210,7 +255,19 @@ public class KontalkKeyring {
         throw new PGPException("Invalid key data");
     }
 
-    String importKey(byte[] keyData) {
+    String importKeyGlobal(byte[] keyData) {
+        return importKeyInternal(keyData, globalContext);
+    }
+
+    String importKey(byte[] keyData) throws IOException, PGPException {
+        PGPPublicKey pk = PGPUtils.getMasterKey(keyData);
+        String fingerprint = Hex.toHexString(pk.getFingerprint());
+        GnuPGContext ctx = getContext(fingerprint);
+
+        return importKeyInternal(keyData, ctx);
+    }
+
+    private String importKeyInternal(byte[] keyData, GnuPGContext ctx) {
         String fpr;
         synchronized (ctx) {
             GnuPGData data = ctx.createDataObject(keyData);
@@ -227,16 +284,16 @@ public class KontalkKeyring {
      * @return a Kontalk user instance if successful.
      */
     public KontalkUser verifyLegacyToken(byte[] token, String fingerprint) {
-        synchronized (ctx) {
+        synchronized (globalContext) {
             GnuPGData signed = null;
             GnuPGData unused = null;
             GnuPGData plain = null;
 
             try {
-                signed = ctx.createDataObject(token);
-                unused = ctx.createDataObject();
-                plain = ctx.createDataObject();
-                ctx.verify(signed, unused, plain);
+                signed = globalContext.createDataObject(token);
+                unused = globalContext.createDataObject();
+                plain = globalContext.createDataObject();
+                globalContext.verify(signed, unused, plain);
 
                 String text = plain.toString();
                 String[] parsed = text.split("\\|");
@@ -260,11 +317,24 @@ public class KontalkKeyring {
         return null;
     }
 
+    private static String getConfiguredHomeDir() {
+        return System.getProperty("gnupg.home");
+    }
+
+    private static int getConfiguredPartitions() {
+        try {
+            return Integer.parseInt(System.getProperty("gnupg.partitions"));
+        }
+        catch (Exception e) {
+            return 1;
+        }
+    }
+
     /** Initializes the keyring. */
     public static KontalkKeyring getInstance(String domain, String fingerprint) {
         KontalkKeyring instance = instances.get(domain);
         if (instances.get(domain) == null) {
-            instance = new KontalkKeyring(domain, fingerprint);
+            instance = new KontalkKeyring(domain, fingerprint, getConfiguredHomeDir(), getConfiguredPartitions());
             instances.put(domain, instance);
         }
         return instance;

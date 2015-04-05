@@ -48,8 +48,8 @@ public class KontalkKeyring {
     private final String fingerprint;
     private GnuPGContext[] contexts;
 
-    private GnuPGContext globalContext;
-    private GnuPGKey secretKey;
+    private final GnuPGContext globalContext;
+    private final GnuPGKey secretKey;
 
     /** Use {@link #getInstance(String, String)} instead. */
     public KontalkKeyring(String domain, String fingerprint, String homeDir, int partitions) {
@@ -62,6 +62,10 @@ public class KontalkKeyring {
         globalContext.setArmor(false);
         if (fingerprint != null) {
             this.secretKey = globalContext.getKeyByFingerprint(fingerprint);
+        }
+        else {
+            // not using a secret key (WHAT?)
+            this.secretKey = null;
         }
     }
 
@@ -183,7 +187,13 @@ public class KontalkKeyring {
 
                 GnuPGKey skey;
                 synchronized (globalContext) {
-                    skey = globalContext.getKeyByFingerprint(sig.getKeyID());
+                    try {
+                        skey = globalContext.getKeyByFingerprint(sig.getKeyID());
+                    }
+                    catch (GnuPGException e) {
+                        // ignoring - probably due to self signature
+                        skey = null;
+                    }
                 }
                 if (skey != null && skey.getFingerprint().equalsIgnoreCase(fingerprint))
                     return jid;
@@ -194,9 +204,17 @@ public class KontalkKeyring {
         return null;
     }
 
+    private byte[] exportKeyGlobal(String fingerprint) throws IOException {
+        return exportKeyInternal(fingerprint, globalContext);
+    }
+
     public byte[] exportKey(String fingerprint) throws IOException {
-        GnuPGData data;
         GnuPGContext ctx = getContext(fingerprint);
+        return exportKeyInternal(fingerprint, ctx);
+    }
+
+    public byte[] exportKeyInternal(String fingerprint, GnuPGContext ctx) throws IOException {
+        GnuPGData data;
         synchronized (ctx) {
             data = ctx.createDataObject();
             ctx.export(fingerprint, 0, data);
@@ -226,12 +244,7 @@ public class KontalkKeyring {
         String fpr = importKeyGlobal(keyData);
 
         if (fpr != null) {
-            GnuPGKey key;
-            GnuPGContext ctx = getContext(fpr);
-            synchronized (ctx) {
-                key = ctx.getKeyByFingerprint(fpr);
-            }
-            if (key != null) {
+            try {
                 StringBuilder cmd = new StringBuilder("gpg2 --yes --batch -u ")
                         .append(fingerprint)
                         .append(" --sign-key ")
@@ -239,7 +252,7 @@ public class KontalkKeyring {
 
                 try {
                     System.out.println("CMD: <" + cmd + ">");
-                    synchronized (ctx) {
+                    synchronized (globalContext) {
                         Runtime.getRuntime().exec(cmd.toString()).waitFor();
                     }
                 }
@@ -248,7 +261,25 @@ public class KontalkKeyring {
                     throw new IOException("Interrupted");
                 }
 
-                return exportKey(fpr);
+                byte[] signedKey = exportKeyGlobal(fpr);
+                // put key into its partition
+                if (importKey(signedKey) != null)
+                    return signedKey;
+            }
+            finally {
+                // remove key from global context
+                StringBuilder cmd = new StringBuilder("gpg2 --yes --batch --delete-key ")
+                        .append(fpr);
+
+                try {
+                    System.out.println("CMD: <" + cmd + ">");
+                    synchronized (globalContext) {
+                        Runtime.getRuntime().exec(cmd.toString()).waitFor();
+                    }
+                }
+                catch (InterruptedException e) {
+                    // ignored
+                }
             }
         }
 

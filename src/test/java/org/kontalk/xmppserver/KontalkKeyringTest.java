@@ -1,13 +1,7 @@
 package org.kontalk.xmppserver;
 
-import org.junit.Before;
 import org.junit.Test;
 import tigase.util.Base64;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
 
 import static org.junit.Assert.*;
 
@@ -129,21 +123,6 @@ public class KontalkKeyringTest {
         assertEquals(12, keyring.getPartition("C7D0E678CDD19FB9B182B3804C9539B401F8229C"));
         assertEquals(11, keyring.getPartition("B7D0E678CDD19FB9B182B3804C9539B401F8229C"));
         assertEquals(2, keyring.getPartition("27D0E678CDD19FB9B182B3804C9539B401F8229C"));
-    }
-
-    @Test
-    public void testPartitioning() throws Exception {
-        KontalkKeyring keyring = createPartitionedKeyring("23C5B43F9DDA7B187FA0CF99E65EBEE86862C300", 2);
-
-        File key = new File("/home/daniele/Downloads/kontalk-public.key");
-        final byte[] buf = new byte[(int) key.length()];
-        RandomAccessFile f = new RandomAccessFile(key, "r");
-        f.readFully(buf);
-        f.close();
-
-        KontalkUser user = keyring.authenticate(buf);
-        assertNotNull(user);
-        assertTrue(keyring.postAuthenticate(user, null));
     }
 
 }

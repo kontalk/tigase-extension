@@ -34,7 +34,7 @@ import java.util.logging.Logger;
  * XEP-0352: Client State Indication
  * @author Daniele Ricci
  */
-public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc {
+public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc, XMPPStopListenerIfc {
     private static Logger log = Logger.getLogger(ClientStateIndication.class.getName());
 
     private static final String XMLNS = "urn:xmpp:csi:0";
@@ -74,6 +74,16 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         }
     }
 
+    @Override
+    public void stopped(XMPPResourceConnection session, Queue<Packet> results, Map<String, Object> settings) {
+        if (session != null && results != null) {
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "User disconnected, activating session {0}", session);
+            }
+            flush(session, results, false);
+        }
+    }
+
     /** Activates client state indication (that is, client going to inactive state). */
     private void setInactive(XMPPResourceConnection session) {
         session.putSessionData(SESSION_QUEUE, new InternalQueue());
@@ -81,13 +91,19 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** Deactivates client state indication (that is, client going to active state). */
     private void setActive(XMPPResourceConnection session, Queue<Packet> results) {
+        flush(session, results, true);
+    }
+
+    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence) {
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
             return;
 
         synchronized (queue) {
-            // send all pending presence data
-            results.addAll(queue.values());
+            if (flushPresence) {
+                // send all pending presence data
+                results.addAll(queue.values());
+            }
             // send all pending messages
             List<Message> msgs = queue.getMessages();
             if (msgs != null && msgs.size() > 0)

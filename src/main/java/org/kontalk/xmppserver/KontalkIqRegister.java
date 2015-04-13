@@ -425,7 +425,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private boolean verifyCode(XMPPResourceConnection session, BareJID jid, String code) throws TigaseDBException, IOException {
         String requestId = requests.get(jid);
-        return provider.endVerification(session, requestId, code);
+        return requestId != null && provider.endVerification(session, requestId, code);
     }
 
     private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {

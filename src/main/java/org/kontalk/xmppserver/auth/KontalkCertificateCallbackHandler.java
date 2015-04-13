@@ -153,7 +153,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         return null;
     }
 
-    private KontalkUser verifyPublicKey(byte[] publicKeyData) {
+    private KontalkUser verifyPublicKey(byte[] publicKeyData) throws IOException, PGPException {
         KontalkKeyring keyring = getKeyring();
         KontalkUser user = keyring.authenticate(publicKeyData);
         if (user == null) {

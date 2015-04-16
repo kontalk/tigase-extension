@@ -40,7 +40,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     private static final String XMLNS = "urn:xmpp:csi:0";
     public static final String ID = XMLNS;
 
-    private static final String[] XMLNSS = {XMLNS, XMLNS, XMLNS};
+    private static final String[] XMLNSS = {XMLNS, XMLNS};
 
     private static final String ELEM_ACTIVE = "active";
     private static final String ELEM_INACTIVE = "inactive";
@@ -58,14 +58,14 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     @Override
     public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
-        if (packet.getElemName().equals(ELEM_ACTIVE)) {
+        if (packet.getElemName() == ELEM_ACTIVE) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "Activating session {0}", session);
             }
             setActive(session, results);
             packet.processedBy(ID);
         }
-        else if (packet.getElemName().equals(ELEM_INACTIVE)) {
+        else if (packet.getElemName() == ELEM_INACTIVE) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "Deactivating session {0}", session);
             }

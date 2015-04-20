@@ -82,6 +82,11 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             }
             flush(session, results, false);
         }
+        else {
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "Session disappeared!");
+            }
+        }
     }
 
     /** Activates client state indication (that is, client going to inactive state). */

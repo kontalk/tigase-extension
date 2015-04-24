@@ -55,7 +55,10 @@ public class KontalkKeyring {
     public KontalkKeyring(String domain, String fingerprint, String homeDir, int partitions) {
         this.domain = domain;
         this.fingerprint = fingerprint;
-        initPartitions(homeDir, partitions);
+
+        if (homeDir != null && partitions > 0) {
+            initPartitions(homeDir, partitions);
+        }
 
         // use another keyring for the secret key
         globalContext = new GnuPGContext();
@@ -89,7 +92,7 @@ public class KontalkKeyring {
 
     /** Returns the context to use for the given fingerprint according to keyspace partitioning. */
     private GnuPGContext getContext(String fingerprint) {
-        return contexts[getPartition(fingerprint)];
+        return contexts != null ? contexts[getPartition(fingerprint)] : globalContext;
     }
 
     int getPartition(String fingerprint) {

@@ -31,7 +31,7 @@ import java.util.logging.Logger;
  * @author Daniele Ricci
  */
 public class AndroidEmulatorProvider extends SMSDataStoreVerificationProvider {
-    private static Logger log = Logger.getLogger(NexmoSMSProvider.class.getName());
+    private static Logger log = Logger.getLogger(AndroidEmulatorProvider.class.getName());
 
     private String deviceId;
     private String ackInstructions;

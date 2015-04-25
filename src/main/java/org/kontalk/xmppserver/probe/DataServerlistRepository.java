@@ -29,6 +29,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -42,14 +43,33 @@ public class DataServerlistRepository implements ServerlistRepository {
     private DataRepository repo;
     private List<ServerInfo> serverlist;
 
-    public DataServerlistRepository(String dbUri) throws ClassNotFoundException,
-            DBInitException, InstantiationException, SQLException, IllegalAccessException {
-        repo = RepositoryFactory.getDataRepository(null, dbUri, null);
+    @Override
+    public void init(Map<String, Object> props) throws DBInitException {
+        try {
+            String dbUri = (String) props.get("db-uri");
+            if (dbUri != null) {
+                repo = RepositoryFactory.getDataRepository(null, dbUri, null);
+            }
+        }
+        catch (Exception e) {
+            throw new DBInitException("error initializing push data storage", e);
+        }
     }
 
     @Override
     public List<ServerInfo> getList() {
         return serverlist;
+    }
+
+    @Override
+    public boolean isNetworkDomain(String domain) {
+        if (serverlist != null) {
+            for (ServerInfo server : serverlist) {
+                if (server.getHost().equalsIgnoreCase(domain))
+                    return true;
+            }
+        }
+        return false;
     }
 
     @Override

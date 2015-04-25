@@ -19,8 +19,11 @@
 package org.kontalk.xmppserver;
 
 import org.kontalk.xmppserver.probe.DataServerlistRepository;
+import org.kontalk.xmppserver.probe.ProbeComponent;
 import org.kontalk.xmppserver.probe.ProbeEngine;
 
+import org.kontalk.xmppserver.probe.ServerlistRepository;
+import tigase.db.DBInitException;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
@@ -41,7 +44,9 @@ import java.util.logging.Logger;
  * This plugin will lookup users in the Kontalk network by probing every server or by polling the local cache.
  * If a roster request contains items, the packet will be processed by this plugin and then filtered.
  * @author Daniele Ricci
+ * @deprecated Replaced by {@link ProbeComponent}.
  */
+@Deprecated
 public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XMPPPreprocessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
@@ -60,19 +65,12 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
         // database parameters for probe engine
         String dbUri = (String) settings.get("db-uri");
         try {
-            probeEngine = new ProbeEngine(new DataServerlistRepository(dbUri));
+            ServerlistRepository repo = new DataServerlistRepository();
+            repo.init(settings);
+            probeEngine = new ProbeEngine(repo);
         }
-        catch (ClassNotFoundException e) {
-            throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
-        }
-        catch (InstantiationException e) {
+        catch (DBInitException e) {
             throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
-        }
-        catch (SQLException e) {
-            throw new TigaseDBException("SQL exception (uri=" + dbUri + ")", e);
-        }
-        catch (IllegalAccessException e) {
-            throw new TigaseDBException("Unknown error (uri=" + dbUri + ")", e);
         }
     }
 

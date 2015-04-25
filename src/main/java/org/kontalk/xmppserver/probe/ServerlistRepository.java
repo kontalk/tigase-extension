@@ -19,9 +19,11 @@
 package org.kontalk.xmppserver.probe;
 
 
+import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Interface to a server list repository.
@@ -29,9 +31,13 @@ import java.util.List;
  */
 public interface ServerlistRepository {
 
+    public void init(Map<String, Object> props) throws DBInitException;
+
     public void reload() throws TigaseDBException;
 
     public List<ServerInfo> getList();
+
+    public boolean isNetworkDomain(String domain);
 
     public static class ServerInfo {
         private String fingerprint;

@@ -58,7 +58,10 @@ public class KontalkKeyringTest {
     }
 
     private KontalkKeyring createPartitionedKeyring(String fingerprint, int partitions) {
-        return new KontalkKeyring("beta.kontalk.net", fingerprint, System.getProperty("gnupg.home"), partitions);
+        String home = System.getProperty("gnupg.home");
+        if (home == null || home.length() == 0)
+            home = "/test/gnupg/home";
+        return new KontalkKeyring("beta.kontalk.net", fingerprint, home, partitions);
     }
 
     @Test

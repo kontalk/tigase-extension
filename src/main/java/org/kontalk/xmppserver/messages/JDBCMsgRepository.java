@@ -24,15 +24,10 @@ import tigase.xml.Element;
 import tigase.xml.SimpleParser;
 import tigase.xml.SingletonFactory;
 import tigase.xmpp.BareJID;
-import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.XMPPResourceConnection;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Map;
-import java.util.Queue;
+import java.sql.*;
+import java.util.*;
+import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -54,45 +49,56 @@ public class JDBCMsgRepository implements MsgRepository {
 
     private static final String MYSQL_CREATE_MSG_TABLE =
             "CREATE TABLE `"+MSG_TABLE+"` (" +
-            " `"+MSG_ID_COLUMN+"` bigint(20) NOT NULL AUTO_INCREMENT," +
+            " `"+MSG_ID_COLUMN+"` bigint(20) NOT NULL PRIMARY KEY AUTO_INCREMENT," +
             " `"+MSG_UID_COLUMN+"` bigint(20) unsigned NOT NULL," +
             " `"+MSG_STANZA_COLUMN+"` mediumtext NOT NULL," +
             " `"+MSG_TIMESTAMP_COLUMN+"` datetime NOT NULL," +
-            " `"+MSG_EXPIRED_COLUMN+"` datetime DEFAULT NULL" +
+            " `"+MSG_EXPIRED_COLUMN+"` datetime DEFAULT NULL," +
+            "CONSTRAINT FOREIGN KEY (`"+MSG_UID_COLUMN+"`) REFERENCES `tig_users` (`uid`)" +
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='Offline message storage'";
-    private static final String[] MYSQL_INDEX_MSG_TABLE = {
-            "ALTER TABLE `"+MSG_TABLE+"`" +
-                " ADD PRIMARY KEY (`"+MSG_ID_COLUMN+"`)," +
-                " ADD KEY `uid` (`"+MSG_UID_COLUMN+"`)",
-            "ALTER TABLE `"+MSG_TABLE+"`" +
-                " ADD CONSTRAINT `"+MSG_ID_COLUMN+"` FOREIGN KEY (`fk_uid`) REFERENCES `tig_users` (`uid`);"
-    };
 
     private static final String MSG_QUERY_LOAD_ID = "messages_load";
     private static final String MSG_QUERY_LOAD_SQL = "select * from " + MSG_TABLE + " where "+MSG_UID_COLUMN+" = ?";
 
+    private static final String MSG_QUERY_STORE_ID = "messages_store";
+    private static final String MSG_QUERY_STORE_SQL = "insert into " + MSG_TABLE + " VALUES (NULL, ?, ?, ?, ?)";
+
+    private static final String MSG_QUERY_DELETE_ID = "messages_delete";
+    private static final String MSG_QUERY_DELETE_SQL = "delete from " + MSG_TABLE + " where "+MSG_UID_COLUMN+" = ?";
+
+    private static final String MSG_QUERY_DELETE_EXPIRED_SQL = "delete from " + MSG_TABLE + " where expired < now()";
+
     private boolean initialized = false;
 
     private DataRepository data_repo;
+    private UserRepository user_repo;
 
     private SimpleParser parser = SingletonFactory.getParserInstance();
 
     @Override
     public int expireMessages() throws TigaseDBException {
-        // TODO
-        return 0;
+        Statement stmt = null;
+
+        try {
+            stmt = data_repo.createStatement(null);
+            return stmt.executeUpdate(MSG_QUERY_DELETE_EXPIRED_SQL);
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException("database error", e);
+        }
+        finally {
+            data_repo.release(stmt, null);
+        }
     }
 
-
     @Override
-    public Queue<Element> loadMessagesToJID(XMPPResourceConnection conn, boolean delete) throws TigaseDBException {
-        PreparedStatement stmt = null;
+    public Queue<Element> loadMessagesToJID(BareJID user, boolean delete) throws TigaseDBException {
+        PreparedStatement stmt;
         ResultSet rs = null;
 
         try {
-            BareJID jid = conn.getBareJID();
-            long uid = conn.getUserRepository().getUserUID(jid);
-            stmt = data_repo.getPreparedStatement(jid, MSG_QUERY_LOAD_ID);
+            long uid = user_repo.getUserUID(user);
+            stmt = data_repo.getPreparedStatement(user, MSG_QUERY_LOAD_ID);
             stmt.setLong(1, uid);
             rs = stmt.executeQuery();
 
@@ -107,25 +113,50 @@ public class JDBCMsgRepository implements MsgRepository {
                 char[] data = sb.toString().toCharArray();
                 parser.parse(domHandler, data, 0, data.length);
 
-                return domHandler.getParsedElements();
+                Queue<Element> elements = domHandler.getParsedElements();
+
+                if (delete)
+                    deleteMessages(uid);
+
+                // we will return the data only when everything went well
+                return elements;
             }
         }
         catch (SQLException e) {
             throw new TigaseDBException("database error", e);
         }
-        catch (NotAuthorizedException e) {
-            throw new TigaseDBException("shouldn't happen!", e);
-        }
         finally {
-            data_repo.release(stmt, rs);
+            data_repo.release(null, rs);
         }
 
         return null;
     }
 
+    private int deleteMessages(long uid) throws SQLException {
+        PreparedStatement stmt = data_repo.getPreparedStatement(null, MSG_QUERY_DELETE_ID);
+        stmt.setLong(1, uid);
+        return stmt.executeUpdate();
+    }
+
     @Override
-    public void storeMessage(XMPPResourceConnection conn, Element msg) throws TigaseDBException {
-        // TODO
+    public void storeMessage(BareJID user, Element msg, Date expire) throws TigaseDBException {
+        PreparedStatement stmt;
+
+        try {
+            long uid = user_repo.getUserUID(user);
+            stmt = data_repo.getPreparedStatement(user, MSG_QUERY_STORE_ID);
+            stmt.setLong(1, uid);
+            stmt.setString(2, msg.toString());
+            stmt.setTimestamp(3, new java.sql.Timestamp(System.currentTimeMillis()));
+            if (expire != null)
+                stmt.setTimestamp(4, new java.sql.Timestamp(expire.getTime()));
+            else
+                stmt.setNull(4, Types.TIMESTAMP);
+            stmt.execute();
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException("database error", e);
+        }
     }
 
     @Override
@@ -142,6 +173,10 @@ public class JDBCMsgRepository implements MsgRepository {
 
             checkDB();
             data_repo.initPreparedStatement(MSG_QUERY_LOAD_ID, MSG_QUERY_LOAD_SQL);
+            data_repo.initPreparedStatement(MSG_QUERY_STORE_ID, MSG_QUERY_STORE_SQL);
+            data_repo.initPreparedStatement(MSG_QUERY_DELETE_ID, MSG_QUERY_DELETE_SQL);
+
+            user_repo = RepositoryFactory.getUserRepository(null, resource_uri, params);
         }
         catch (Exception e) {
             log.log(Level.WARNING, "Error initializing message repository", e);
@@ -150,22 +185,12 @@ public class JDBCMsgRepository implements MsgRepository {
 
     /** Performs database check, creates missing schema if necessary. */
     private void checkDB() throws SQLException {
-        Statement statement = null;
         DataRepository.dbTypes databaseType = data_repo.getDatabaseType();
-        try {
-            switch (databaseType) {
-                case mysql:
-                    if (!data_repo.checkTable(MSG_TABLE, MYSQL_CREATE_MSG_TABLE)) {
-                        statement = data_repo.createStatement(null);
-                        for (String sql : MYSQL_INDEX_MSG_TABLE)
-                            statement.execute(sql);
-                    }
-                    break;
-                // TODO support for other databases
-            }
-        }
-        finally {
-            data_repo.release(statement, null);
+        switch (databaseType) {
+            case mysql:
+                data_repo.checkTable(MSG_TABLE, MYSQL_CREATE_MSG_TABLE);
+                break;
+            // TODO support for other databases
         }
     }
 

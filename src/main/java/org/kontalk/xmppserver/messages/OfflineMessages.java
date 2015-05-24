@@ -35,6 +35,7 @@ import tigase.xmpp.impl.annotation.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,6 +69,13 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
     private static final Logger log = Logger.getLogger(OfflineMessages.class.getName());
 
+    private static final int DEF_EXPIRE_SECONDS = 604800;
+
+    private int messageExpire;
+    private int presenceExpire;
+
+    private Timer taskTimer;
+
     private MsgRepository msgRepo = new JDBCMsgRepository();
     private Message message = new Message();
     private final DateFormat formatter;
@@ -85,17 +93,57 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
-        // TODO load database configuration
-        // msgRepo.initRepository(...)
+        String uri = (String) settings.get("db-uri");
+        msgRepo.initRepository(uri, null);
+
+        try {
+            messageExpire = (int) settings.get("message-expire");
+        }
+        catch (Exception e) {
+            messageExpire = DEF_EXPIRE_SECONDS;
+        }
+        try {
+            presenceExpire = (int) settings.get("presence-expire");
+        }
+        catch (Exception e) {
+            presenceExpire = DEF_EXPIRE_SECONDS;
+        }
+
+        long hour = TimeUnit.HOURS.toMillis(1);
+        taskTimer = new Timer(ID + " tasks", true);
+        taskTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    if (log.isLoggable(Level.FINEST)) {
+                        log.finest("Purging expired messages.");
+                    }
+                    msgRepo.expireMessages();
+                }
+                catch (TigaseDBException e) {
+                    log.log(Level.WARNING, "error purging expired messages", e);
+                }
+            }
+        }, hour, hour);
+
     }
 
     /**
      * Returns expiration time for the given packet.
-     * @return expiration time, or null for no expiration
+     * @return expiration UTC time, or null for no expiration
      */
     private Date getExpiration(Packet packet) {
-        // TODO
-        return null;
+        int seconds;
+        if (packet.getElemName() == tigase.server.Presence.ELEM_NAME) {
+            seconds = presenceExpire;
+        }
+        else {
+            seconds = messageExpire;
+        }
+
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.SECOND, seconds);
+        return cal.getTime();
     }
 
     @Override
@@ -107,7 +155,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
                 if ( packets != null ){
                     if ( log.isLoggable( Level.FINER ) ){
-                        log.finer( "Sending off-line messages: " + packets.size() );
+                        log.finer( "Sending offline messages: " + packets.size() );
                     }
                     results.addAll( packets );
                 }
@@ -122,14 +170,10 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                             Queue<Packet> results, Map<String, Object> settings) {
         if (session == null || !message.hasConnectionForMessageDelivery(session)) {
             try {
-                savePacketForOffLineUser(session, packet, msgRepo);
+                savePacketForOffLineUser(packet, msgRepo);
             }
             catch (TigaseDBException e) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.finest(
-                            "TigaseDBException at trying to save packet for off-line user."
-                                    + packet);
-                }
+                log.log(Level.WARNING, "TigaseDBException at trying to save packet for off-line user." + packet, e);
             }
         }
     }
@@ -216,7 +260,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
     public Queue<Packet> restorePacketForOffLineUser( XMPPResourceConnection session,
                                                       MsgRepository repo )
             throws TigaseDBException, NotAuthorizedException {
-        Queue<Element> elems = repo.loadMessagesToJID( session, true );
+        Queue<Element> elems = repo.loadMessagesToJID(session.getBareJID(), true);
 
         if ( elems != null ){
             LinkedList<Packet> pacs = new LinkedList<Packet>();
@@ -270,7 +314,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
      *
      * @throws UserNotFoundException
      */
-    public boolean savePacketForOffLineUser( XMPPResourceConnection session, Packet pac, MsgRepository repo )
+    public boolean savePacketForOffLineUser(Packet pac, MsgRepository repo)
             throws TigaseDBException {
         StanzaType type = pac.getType();
 
@@ -308,8 +352,8 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                 elem.addChild(x);
             }
 
-            repo.storeMessage(session, elem );
-            pac.processedBy( ID );
+            repo.storeMessage(pac.getStanzaTo().getBareJID(), elem, getExpiration(pac));
+            pac.processedBy(ID);
 
             return true;
         } else {

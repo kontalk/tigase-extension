@@ -21,9 +21,11 @@ package org.kontalk.xmppserver.messages;
 import tigase.db.Repository;
 import tigase.db.TigaseDBException;
 import tigase.xml.Element;
+import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
 import tigase.xmpp.XMPPResourceConnection;
 
+import java.util.Date;
 import java.util.Queue;
 
 
@@ -41,9 +43,12 @@ public interface MsgRepository extends Repository {
     int expireMessages() throws TigaseDBException;
 
     /** Loads all payloads for the given user's {@link JID} from repository. */
-    Queue<Element> loadMessagesToJID(XMPPResourceConnection conn, boolean delete) throws TigaseDBException;
+    Queue<Element> loadMessagesToJID(BareJID user, boolean delete) throws TigaseDBException;
 
-    /** Saves the massage to the repository. */
-    void storeMessage(XMPPResourceConnection conn, Element msg) throws TigaseDBException;
+    /**
+     * Saves the massage to the repository.
+     * @param expire date of expiration (UTC)
+     */
+    void storeMessage(BareJID user, Element msg, Date expire) throws TigaseDBException;
 
 }

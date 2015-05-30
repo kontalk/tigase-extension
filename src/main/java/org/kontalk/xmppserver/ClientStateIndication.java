@@ -105,14 +105,35 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             return;
 
         synchronized (queue) {
-            if (flushPresence) {
+            if (flushPresence && queue.size() > 0) {
                 // send all pending presence data
-                results.addAll(queue.values());
+                try {
+                    JID connId = session.getConnectionId();
+                    Collection<Presence> values = queue.values();
+                    for (Presence p : values) {
+                        p.setPacketTo(connId);
+                        results.offer(p);
+                    }
+                }
+                catch (NoConnectionIdException e) {
+                    log.log(Level.SEVERE, "this should not happen", e);
+                }
             }
             // send all pending messages
             List<Message> msgs = queue.getMessages();
-            if (msgs != null && msgs.size() > 0)
-                results.addAll(msgs);
+            if (msgs != null && msgs.size() > 0) {
+                try {
+                    JID connId = session.getConnectionId();
+                    for (Message p : msgs) {
+                        p.setPacketTo(connId);
+                        results.offer(p);
+                    }
+                }
+                catch (NoConnectionIdException e) {
+                    log.log(Level.WARNING, "connection has vanished, sending messages to JID", e);
+                    results.addAll(msgs);
+                }
+            }
             // destroy and remove stanza store
             queue.clear();
             session.removeSessionData(SESSION_QUEUE);

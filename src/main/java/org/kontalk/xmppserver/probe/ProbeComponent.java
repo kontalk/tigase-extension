@@ -48,6 +48,9 @@ public class ProbeComponent extends AbstractMessageReceiver {
     private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
     private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
+    /** Timeout of remote requests in milliseconds. */
+    private static final int REQUEST_TIMEOUT = 30000;
+
     private static final int NUM_THREADS = 20;
 
     // request ID : probe info
@@ -219,18 +222,21 @@ public class ProbeComponent extends AbstractMessageReceiver {
                 // send it to remote server
                 addOutPacket(roster);
 
-                info = probes.get(requestId);
-                if (info == null) {
-                    info = new ProbeInfo();
-                    info.id = requestId;
-                    info.sender = user;
-                    info.stanzaId = stanzaId;
-                    info.storage = localJidList;
-                    info.maxReplies = 1;
-                    probes.put(requestId, info);
-                }
-                else {
-                    info.maxReplies++;
+                synchronized (probes) {
+                    info = probes.get(requestId);
+                    if (info == null) {
+                        info = new ProbeInfo();
+                        info.timestamp = System.currentTimeMillis();
+                        info.id = requestId;
+                        info.sender = user;
+                        info.stanzaId = stanzaId;
+                        info.storage = localJidList;
+                        info.maxReplies = 1;
+                        probes.put(requestId, info);
+                    }
+                    else {
+                        info.maxReplies++;
+                    }
                 }
             }
         }
@@ -279,11 +285,30 @@ public class ProbeComponent extends AbstractMessageReceiver {
         addOutPacket(Packet.packetInstance(iq, null, info.sender));
     }
 
+    @Override
+    public synchronized void everySecond() {
+        super.everySecond();
+        purgeTimedOutRequests();
+    }
 
     public JID getComponentPublicId() {
         if (publicId == null)
             publicId = JID.jidInstanceNS(getName(), getDefVHostItem().getDomain());
         return publicId;
+    }
+
+    private void purgeTimedOutRequests() {
+        synchronized (probes) {
+            Iterator<ProbeInfo> entries = probes.values().iterator();
+            while (entries.hasNext()) {
+                ProbeInfo info = entries.next();
+                long diff = System.currentTimeMillis() - info.timestamp;
+                if (diff > REQUEST_TIMEOUT) {
+                    sendResult(info);
+                    entries.remove();
+                }
+            }
+        }
     }
 
     /** Returns true if the given JID is an authorized remote probe component. */
@@ -356,6 +381,8 @@ public class ProbeComponent extends AbstractMessageReceiver {
     }
 
     private static final class ProbeInfo {
+        /** Timestamp of request. */
+        private long timestamp;
         /** The final destination user. */
         private JID sender;
         /** Stanza ID. */

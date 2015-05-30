@@ -19,11 +19,12 @@
 package org.kontalk.xmppserver.probe;
 
 import tigase.conf.ConfigurationException;
+import tigase.db.RepositoryFactory;
+import tigase.db.TigaseDBException;
+import tigase.db.UserRepository;
 import tigase.server.AbstractMessageReceiver;
 import tigase.server.Iq;
 import tigase.server.Packet;
-import tigase.server.XMPPServer;
-import tigase.server.xmppsession.SessionManager;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.*;
@@ -54,8 +55,8 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
     private JID publicId;
 
-    private SessionManager sessMan;
     private final ServerlistRepository repository = new DataServerlistRepository();
+    private UserRepository user_repository;
 
     @Override
     public void processPacket(Packet packet) {
@@ -152,29 +153,31 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
                 else if (type == StanzaType.result) {
                     String requestId = packet.getStanzaId();
-                    ProbeInfo probe = probes.get(requestId);
-                    if (probe != null) {
-                        // we have a pending probe
-                        probe.numReplies++;
+                    synchronized (probes) {
+                        ProbeInfo probe = probes.get(requestId);
+                        if (probe != null) {
+                            // we have a pending probe
+                            probe.numReplies++;
 
-                        List<Element> items = packet.getElemChildrenStaticStr(Iq.IQ_QUERY_PATH);
-                        if (items != null) {
-                            for (Element item : items) {
-                                if (!item.getName().equals("item")) {
-                                    // not a roster item
-                                    continue;
+                            List<Element> items = packet.getElemChildrenStaticStr(Iq.IQ_QUERY_PATH);
+                            if (items != null) {
+                                for (Element item : items) {
+                                    if (!item.getName().equals("item")) {
+                                        // not a roster item
+                                        continue;
+                                    }
+
+                                    // add JID to storage
+                                    BareJID jid = BareJID.bareJIDInstance(item.getAttributeStaticStr("jid"));
+                                    probe.storage.add(jid);
                                 }
-
-                                // add JID to storage
-                                BareJID jid = BareJID.bareJIDInstance(item.getAttributeStaticStr("jid"));
-                                probe.storage.add(jid);
                             }
-                        }
 
-                        if (probe.numReplies >= probe.maxReplies) {
-                            // all replies are here, send back result to original requester
-                            sendResult(probe);
-                            probes.remove(requestId);
+                            if (probe.numReplies >= probe.maxReplies) {
+                                // all replies are here, send back result to original requester
+                                sendResult(probe);
+                                probes.remove(requestId);
+                            }
                         }
                     }
                 }
@@ -295,15 +298,15 @@ public class ProbeComponent extends AbstractMessageReceiver {
                 !jid.getDomain().equalsIgnoreCase(getDefVHostItem().getDomain());
     }
 
-    /** Returns true if the given JID is registered locally (sess-man lookup). */
+    /** Returns true if the given JID is registered locally (user repository lookup). */
     protected boolean isLocalJID(BareJID jid) {
-        ensureSessionManager();
-        return sessMan.containsJidLocally(jid);
-    }
-
-    private void ensureSessionManager() {
-        if (sessMan == null)
-            sessMan = (SessionManager) XMPPServer.getComponent("sess-man");
+        try {
+            return user_repository.getUserUID(jid) > 0;
+        }
+        catch (TigaseDBException e) {
+            log.log(Level.WARNING, "error reading from user repository", e);
+            return false;
+        }
     }
 
     @Override
@@ -327,6 +330,13 @@ public class ProbeComponent extends AbstractMessageReceiver {
         }
         catch (Exception e) {
             throw new ConfigurationException("unable to initialize push data repository", e);
+        }
+
+        try {
+            user_repository = RepositoryFactory.getUserRepository(null, (String) props.get("db-uri"), null);
+        }
+        catch (Exception e) {
+            throw new ConfigurationException("unable to initialize user data repository", e);
         }
     }
 

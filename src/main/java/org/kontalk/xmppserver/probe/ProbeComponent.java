@@ -49,7 +49,7 @@ public class ProbeComponent extends AbstractMessageReceiver {
     private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
     /** Timeout of remote requests in milliseconds. */
-    private static final int REQUEST_TIMEOUT = 30000;
+    private static final int REQUEST_TIMEOUT = 60000;
 
     private static final int NUM_THREADS = 20;
 
@@ -118,10 +118,18 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
                             if (isLocalJid) {
                                 if (isLocalJID(localJid)) {
+                                    if (log.isLoggable(Level.FINEST)) {
+                                        log.log(Level.FINEST, "found local user {0}", jid);
+                                    }
+
                                     // local user
-                                    found.add(jid);
+                                    found.add(localJid);
                                 }
                                 else if (remote != null) {
+                                    if (log.isLoggable(Level.FINEST)) {
+                                        log.log(Level.FINEST, "remote lookup for user {0}", jid);
+                                    }
+
                                     // queue for remote lookup
                                     remote.add(jid);
                                 }

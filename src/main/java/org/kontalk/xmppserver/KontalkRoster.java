@@ -20,8 +20,6 @@ package org.kontalk.xmppserver;
 
 import org.kontalk.xmppserver.probe.DataServerlistRepository;
 import org.kontalk.xmppserver.probe.ProbeComponent;
-import org.kontalk.xmppserver.probe.ProbeEngine;
-
 import org.kontalk.xmppserver.probe.ServerlistRepository;
 import tigase.db.DBInitException;
 import tigase.db.NonAuthUserRepository;
@@ -33,7 +31,6 @@ import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
 
-import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -47,7 +44,7 @@ import java.util.logging.Logger;
  * @deprecated Replaced by {@link ProbeComponent}.
  */
 @Deprecated
-public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XMPPPreprocessorIfc {
+public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/roster";
@@ -58,8 +55,6 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
 
     private static final Element[] FEATURES = { new Element("roster", new String[] { "xmlns" }, new String[] { XMLNS }) };
 
-    private ProbeEngine probeEngine;
-
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         // database parameters for probe engine
@@ -67,28 +62,10 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
         try {
             ServerlistRepository repo = new DataServerlistRepository();
             repo.init(settings);
-            probeEngine = new ProbeEngine(repo);
         }
         catch (DBInitException e) {
             throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
         }
-    }
-
-    @Override
-    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
-        StanzaType type = packet.getType();
-        String xmlns = packet.getElement().getXMLNSStaticStr( Iq.IQ_QUERY_PATH );
-
-        if (xmlns == XMLNS) {
-            if (type == StanzaType.result) {
-                return probeEngine.handleResult(packet, session, results);
-            }
-            else if (type == StanzaType.error) {
-                return probeEngine.handleError(packet, session, results);
-            }
-        }
-
-        return false;
     }
 
     @Override
@@ -106,6 +83,17 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
             if ( log.isLoggable( Level.FINE ) ){
                 log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
             }
+            return;
+        }
+
+        // ignore packet if directed to a component
+        if (packet.getStanzaTo() != null) {
+            if ( log.isLoggable( Level.FINE ) ){
+                log.log( Level.FINE, "Packet directed to component: {0}", packet );
+            }
+            Packet fwd = packet.copyElementOnly();
+            fwd.setPacketTo(JID.jidInstanceNS("probe", session.getDomainAsJID().getDomain()));
+            results.offer(fwd);
             return;
         }
 
@@ -222,7 +210,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
      * @param localJidList list of already found local JIDs
      */
     private int remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
-        return probeEngine.broadcastLookup(session.getJID(), jidList, requestId, results, localJidList);
+        return 0;
     }
 
     @Override

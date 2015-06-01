@@ -81,7 +81,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                         log.log(Level.INFO, "Database error", e);
                     }
 
-                    packet.processedBy(getComponentInfo().getName());
+                    packet.processedBy(getName());
                     addOutPacket(packet.okResult((String) null, 0));
                 }
                 return;
@@ -99,7 +99,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                     log.log(Level.INFO, "Database error", e);
                 }
 
-                packet.processedBy(getComponentInfo().getName());
+                packet.processedBy(getName());
                 addOutPacket(packet.okResult((String) null, 0));
             }
         }

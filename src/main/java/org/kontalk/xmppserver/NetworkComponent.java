@@ -105,7 +105,8 @@ public class NetworkComponent extends AbstractComponent<NetworkContext> {
 
         if (serverListRepo == null) {
             try {
-                serverListRepo = new DataServerlistRepository((String) props.get("db-uri"));
+                serverListRepo = new DataServerlistRepository();
+                serverListRepo.init(props);
                 serverListRepo.reload();
             }
             catch (Exception e) {

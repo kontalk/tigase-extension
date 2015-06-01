@@ -19,8 +19,9 @@
 package org.kontalk.xmppserver;
 
 import org.kontalk.xmppserver.probe.DataServerlistRepository;
-import org.kontalk.xmppserver.probe.ProbeEngine;
-
+import org.kontalk.xmppserver.probe.ProbeComponent;
+import org.kontalk.xmppserver.probe.ServerlistRepository;
+import tigase.db.DBInitException;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
@@ -30,7 +31,6 @@ import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
 
-import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,8 +41,10 @@ import java.util.logging.Logger;
  * This plugin will lookup users in the Kontalk network by probing every server or by polling the local cache.
  * If a roster request contains items, the packet will be processed by this plugin and then filtered.
  * @author Daniele Ricci
+ * @deprecated Replaced by {@link ProbeComponent}.
  */
-public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XMPPPreprocessorIfc {
+@Deprecated
+public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(KontalkRoster.class.getName());
     public static final String XMLNS = "http://kontalk.org/extensions/roster";
@@ -53,44 +55,17 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
 
     private static final Element[] FEATURES = { new Element("roster", new String[] { "xmlns" }, new String[] { XMLNS }) };
 
-    private ProbeEngine probeEngine;
-
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         // database parameters for probe engine
         String dbUri = (String) settings.get("db-uri");
         try {
-            probeEngine = new ProbeEngine(new DataServerlistRepository(dbUri));
+            ServerlistRepository repo = new DataServerlistRepository();
+            repo.init(settings);
         }
-        catch (ClassNotFoundException e) {
-            throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
-        }
-        catch (InstantiationException e) {
+        catch (DBInitException e) {
             throw new TigaseDBException("Unable to create instance for repository (uri=" + dbUri + ")", e);
         }
-        catch (SQLException e) {
-            throw new TigaseDBException("SQL exception (uri=" + dbUri + ")", e);
-        }
-        catch (IllegalAccessException e) {
-            throw new TigaseDBException("Unknown error (uri=" + dbUri + ")", e);
-        }
-    }
-
-    @Override
-    public boolean preProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
-        StanzaType type = packet.getType();
-        String xmlns = packet.getElement().getXMLNSStaticStr( Iq.IQ_QUERY_PATH );
-
-        if (xmlns == XMLNS) {
-            if (type == StanzaType.result) {
-                return probeEngine.handleResult(packet, session, results);
-            }
-            else if (type == StanzaType.error) {
-                return probeEngine.handleError(packet, session, results);
-            }
-        }
-
-        return false;
     }
 
     @Override
@@ -108,6 +83,17 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
             if ( log.isLoggable( Level.FINE ) ){
                 log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
             }
+            return;
+        }
+
+        // ignore packet if directed to a component
+        if (packet.getStanzaTo() != null) {
+            if ( log.isLoggable( Level.FINE ) ){
+                log.log( Level.FINE, "Packet directed to component: {0}", packet );
+            }
+            Packet fwd = packet.copyElementOnly();
+            fwd.setPacketTo(JID.jidInstanceNS("probe", session.getDomainAsJID().getDomain()));
+            results.offer(fwd);
             return;
         }
 
@@ -224,7 +210,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc, XM
      * @param localJidList list of already found local JIDs
      */
     private int remoteLookup(XMPPResourceConnection session, Collection<BareJID> jidList, String requestId, Queue<Packet> results, Set<BareJID> localJidList) throws NotAuthorizedException {
-        return probeEngine.broadcastLookup(session.getJID(), jidList, requestId, results, localJidList);
+        return 0;
     }
 
     @Override

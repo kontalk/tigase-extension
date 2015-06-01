@@ -32,6 +32,11 @@ import tigase.xmpp.StanzaType;
 import tigase.xmpp.XMPPResourceConnection;
 
 
+/**
+ * Probe engine utils.
+ * @deprecated Replaced by {@link ProbeComponent}.
+ */
+@Deprecated
 public class ProbeEngine {
 
     // request ID : probe info

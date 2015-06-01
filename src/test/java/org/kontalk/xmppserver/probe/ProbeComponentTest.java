@@ -71,7 +71,7 @@ public class ProbeComponentTest {
         }
     }
 
-    @Before
+    //@Before
     public void setUp() throws ConfigurationException {
         Map<String, Object> cfg = new HashMap<>();
         // FIXME non-replayable

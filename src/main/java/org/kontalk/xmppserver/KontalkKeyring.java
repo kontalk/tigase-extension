@@ -18,19 +18,22 @@
 
 package org.kontalk.xmppserver;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-
 import com.freiheit.gnupg.*;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
+import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.util.LRUCache;
 import tigase.xmpp.BareJID;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 
 /**
@@ -47,6 +50,8 @@ public class KontalkKeyring {
     private final String domain;
     private final String fingerprint;
     private GnuPGContext[] contexts;
+
+    private final LRUCache<String,byte[]> keyCache;
 
     private final GnuPGContext globalContext;
     private final GnuPGKey secretKey;
@@ -70,6 +75,8 @@ public class KontalkKeyring {
             // not using a secret key (WHAT?)
             this.secretKey = null;
         }
+
+        keyCache = new LRUCache<>(100, 2000);
     }
 
     private void initPartitions(String homeDir, int partitions) {
@@ -108,21 +115,24 @@ public class KontalkKeyring {
      * @return a user instance with JID and public key fingerprint.
      */
     public KontalkUser authenticate(byte[] keyData) throws IOException, PGPException {
-        String fpr = importKey(keyData);
+        KontalkUser user = checkCache(keyData);
+        if (user == null) {
+            String fpr = importKey(keyData);
 
-        GnuPGKey key;
-        final GnuPGContext ctx = getContext(fpr);
-        synchronized (ctx) {
-            key = ctx.getKeyByFingerprint(fpr);
+            GnuPGKey key;
+            final GnuPGContext ctx = getContext(fpr);
+            synchronized (ctx) {
+                key = ctx.getKeyByFingerprint(fpr);
+            }
+
+            BareJID jid = validate(key);
+
+            if (jid != null) {
+                putCache(key.getFingerprint(), keyData);
+                return new KontalkUser(jid, key.getFingerprint());
+            }
         }
-
-        BareJID jid = validate(key);
-
-        if (jid != null) {
-            return new KontalkUser(jid, key.getFingerprint());
-        }
-
-        return null;
+        return user;
     }
 
     /**
@@ -172,6 +182,30 @@ public class KontalkKeyring {
             key = ctx.getKeyByFingerprint(fpr);
         }
         return key.isRevoked() && key.getFingerprint().equalsIgnoreCase(fingerprint);
+    }
+
+    private KontalkUser checkCache(byte[] keyData) throws IOException, PGPException {
+        PGPPublicKey pk = PGPUtils.getMasterKey(keyData);
+        String fingerprint = Hex.toHexString(pk.getFingerprint()).toUpperCase();
+
+        byte[] cacheHit = keyCache.get(fingerprint);
+        if (cacheHit != null && Arrays.equals(keyData, cacheHit)) {
+            // we got a cache hit, rebuild user data
+            String uidString = (String) pk.getUserIDs().next();
+            if (uidString != null) {
+                PGPUserID uid = PGPUserID.parse(uidString);
+                if (uid != null) {
+                    BareJID jid = BareJID.bareJIDInstanceNS(uid.getEmail());
+                    return new KontalkUser(jid, fingerprint);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void putCache(String fingerprint, byte[] keyData) {
+        keyCache.put(fingerprint.toUpperCase(), keyData);
     }
 
     /** Validates the given key for expiration, revocation and signature by the server. */

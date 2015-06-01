@@ -82,7 +82,7 @@ public class ProbeComponentTest {
         compBeta.setProperties(cfg);
     }
 
-    @Test
+    //@Test
     public void testSendRequest() throws TigaseStringprepException {
         String id = UUID.randomUUID().toString();
 

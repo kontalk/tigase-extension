@@ -157,10 +157,21 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                     if ( log.isLoggable( Level.FINER ) ){
                         log.finer( "Sending offline messages: " + packets.size() );
                     }
+                    waitForPresence(session, 100);
                     results.addAll( packets );
                 }
             } catch ( TigaseDBException e ) {
                 log.info( "Something wrong, DB problem, cannot load offline messages. " + e );
+            }
+        }
+    }
+
+    private void waitForPresence(XMPPResourceConnection session, int millis) {
+        if (session.getPresence() == null || session.getPriority() < 0) {
+            try {
+                Thread.sleep(millis);
+            }
+            catch (InterruptedException ignored) {
             }
         }
     }

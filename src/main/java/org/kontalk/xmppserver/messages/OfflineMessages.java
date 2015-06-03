@@ -274,7 +274,8 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                 }
             }    // end of while (elem = elems.poll() != null)
             try {
-                Collections.sort( pacs, new StampComparator() );
+                if (pacs.size() > 1)
+                    Collections.sort( pacs, new StampComparator() );
             } catch ( NullPointerException e ) {
                 try {
                     log.warning( "Can not sort off line messages: " + pacs + ",\n" + e );

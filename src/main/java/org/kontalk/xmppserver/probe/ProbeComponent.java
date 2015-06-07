@@ -55,6 +55,7 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
     // request ID : probe info
     private final Map<String, ProbeInfo> probes = new HashMap<>();
+    private ProbeManager probeManager;
 
     private JID publicId;
 
@@ -275,22 +276,29 @@ public class ProbeComponent extends AbstractMessageReceiver {
     }
 
     private void sendResult(ProbeInfo info) {
-        Element iq = new Element(Iq.ELEM_NAME);
-        iq.setAttribute(Iq.ID_ATT, info.stanzaId);
-        iq.setAttribute(Iq.TYPE_ATT, StanzaType.result.toString());
+        // notify listener first
+        Queue<Packet> results = new LinkedList<>();
+        if (!probeManager.notifyProbeResult(info, results)) {
+            Element iq = new Element(Iq.ELEM_NAME);
+            iq.setAttribute(Iq.ID_ATT, info.stanzaId);
+            iq.setAttribute(Iq.TYPE_ATT, StanzaType.result.toString());
 
-        Element query = new Element("query");
-        query.setXMLNS(XMLNS);
+            Element query = new Element("query");
+            query.setXMLNS(XMLNS);
 
-        for (BareJID jid : info.storage) {
-            Element item = new Element("item");
-            item.setAttribute("jid", jid.toString());
-            query.addChild(item);
+            for (BareJID jid : info.storage) {
+                Element item = new Element("item");
+                item.setAttribute("jid", jid.toString());
+                query.addChild(item);
+            }
+
+            iq.addChild(query);
+
+            addOutPacket(Packet.packetInstance(iq, null, info.sender));
         }
 
-        iq.addChild(query);
-
-        addOutPacket(Packet.packetInstance(iq, null, info.sender));
+        // add any packet queued by the listener
+        addOutPackets(results);
     }
 
     @Override
@@ -371,6 +379,9 @@ public class ProbeComponent extends AbstractMessageReceiver {
         catch (Exception e) {
             throw new ConfigurationException("unable to initialize user data repository", e);
         }
+
+        // init probe manager
+        probeManager = ProbeManager.init(user_repository);
     }
 
     @Override
@@ -388,21 +399,9 @@ public class ProbeComponent extends AbstractMessageReceiver {
         return DISCO_FEATURES;
     }
 
-    private static final class ProbeInfo {
-        /** Timestamp of request. */
-        private long timestamp;
-        /** The final destination user. */
-        private JID sender;
-        /** Stanza ID. */
-        private String stanzaId;
-        /** Request ID. */
-        private String id;
-        /** Storage for matched JIDs. */
-        private Set<BareJID> storage;
-        /** Number of replies expected. */
-        private int maxReplies;
-        /** Number of replies received. */
-        private int numReplies;
+    public static Packet createProbeRequest(String id, BareJID... users) {
+        // TODO
+        return null;
     }
 
 }

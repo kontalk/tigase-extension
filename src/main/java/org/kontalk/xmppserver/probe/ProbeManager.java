@@ -40,8 +40,18 @@ public class ProbeManager {
 
     private static ProbeManager instance;
 
+    private static final class ProbeListenerInfo {
+        ProbeListener listener;
+        Object userData;
+
+        ProbeListenerInfo(ProbeListener listener, Object userData) {
+            this.listener = listener;
+            this.userData = userData;
+        }
+    }
+
     // key: ProbeInfo.stanzaId
-    private final Map<String, ProbeListener> listeners;
+    private final Map<String, ProbeListenerInfo> listeners;
 
     private final UserRepository userRepository;
 
@@ -64,17 +74,25 @@ public class ProbeManager {
      * @return true to block the result packet for the original requestor
      */
     boolean notifyProbeResult(ProbeInfo info, Queue<Packet> results) {
-        ProbeListener l = listeners.get(info.stanzaId);
-        return l != null && l.onProbeResult(info, results);
+        ProbeListenerInfo l = listeners.get(info.stanzaId);
+        if (l != null) {
+            try {
+                return l.listener.onProbeResult(info, l.userData, results);
+            }
+            finally {
+                listeners.remove(info.stanzaId);
+            }
+        }
+        return false;
     }
 
     /**
      * Checks for a registered user (only local part is considered).
      * @param user the user to check for
      * @param listener the listener to be called after lookup is completed
-     * @return null if the user was found locally, a request ID otherwise. Expect for the listener to be called then.
+     * @return null if the user was found locally, a request ID otherwise. Expect the listener to be called then.
      */
-    public String probe(BareJID user, ProbeListener listener, Queue<Packet> results) {
+    public String probe(BareJID user, ProbeListener listener, Object userData, Queue<Packet> results) {
         boolean foundLocally = false;
         // shortcut to check locally immediately
         try {
@@ -86,7 +104,6 @@ public class ProbeManager {
             if (log.isLoggable(Level.WARNING)) {
                 log.log(Level.WARNING, "unable to lookup user {0} locally", user);
             }
-
         }
 
         if (!foundLocally) {
@@ -94,7 +111,7 @@ public class ProbeManager {
             String requestId = UUID.randomUUID().toString();
             Packet probe = ProbeComponent.createProbeRequest(requestId, user);
             // store the listener
-            listeners.put(requestId, listener);
+            listeners.put(requestId, new ProbeListenerInfo(listener, userData));
             // send the packet out
             results.offer(probe);
 

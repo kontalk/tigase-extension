@@ -42,7 +42,7 @@ public interface PhoneNumberVerificationProvider {
      * @param phoneNumber the phone number being verified
      * @return a request ID of some kind that you will give to {@link #endVerification}.
      */
-    public String startVerification(XMPPResourceConnection session, String phoneNumber)
+    public String startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException;
 
     /**

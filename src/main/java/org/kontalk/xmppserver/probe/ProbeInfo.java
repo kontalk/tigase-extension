@@ -92,4 +92,8 @@ public final class ProbeInfo {
         return numReplies;
     }
 
+    @Override
+    public String toString() {
+        return "ProbeInfo [id="+ id + ", stanzaId="+ stanzaId + ", replies=" + numReplies + ", storage=" + storage + "]";
+    }
 }

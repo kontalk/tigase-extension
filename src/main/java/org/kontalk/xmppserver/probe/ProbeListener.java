@@ -32,9 +32,10 @@ public interface ProbeListener {
      * Called when a probe result is available.
      * Use the provided queue to push out packets.
      * @param info the probe result
+     * @param userData user data provided before
      * @param results a queue to push results back to the server
      * @return true to block the result packet for the original requestor
      */
-    boolean onProbeResult(ProbeInfo info, Queue<Packet> results);
+    boolean onProbeResult(ProbeInfo info, Object userData, Queue<Packet> results);
 
 }

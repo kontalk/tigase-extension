@@ -144,6 +144,9 @@ public class JDBCMsgRepository implements MsgRepository {
 
         try {
             long uid = user_repo.getUserUID(user);
+            if (uid <= 0)
+                throw new UserNotFoundException("user not found: " + user);
+
             stmt = data_repo.getPreparedStatement(user, MSG_QUERY_STORE_ID);
             stmt.setLong(1, uid);
             stmt.setString(2, msg.toString());

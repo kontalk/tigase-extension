@@ -54,7 +54,7 @@ public class RosterFlat2 extends RosterFlat {
             data_repo.initRepository(uri, null);
         }
         catch (Exception e) {
-            throw new TigaseDBException("error initializing message repository", e);
+            throw new TigaseDBException("error initializing presence repository", e);
         }
     }
 

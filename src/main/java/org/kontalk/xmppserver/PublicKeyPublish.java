@@ -36,6 +36,7 @@ import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// FIXME this class needs to be redesigned using XMPPProcessorAbstract methods
 public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc {
 
     private static Logger log = Logger.getLogger(PublicKeyPublish.class.getName());

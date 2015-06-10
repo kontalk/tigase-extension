@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.kontalk.xmppserver;
+package org.kontalk.xmppserver.presence;
 
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
@@ -30,8 +30,8 @@ import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static org.kontalk.xmppserver.PresenceSubscribePublicKey.ELEM_NAME;
-import static org.kontalk.xmppserver.PresenceSubscribePublicKey.XMLNS;
+import static org.kontalk.xmppserver.presence.PresenceSubscribePublicKey.ELEM_NAME;
+import static org.kontalk.xmppserver.presence.PresenceSubscribePublicKey.XMLNS;
 
 
 /**

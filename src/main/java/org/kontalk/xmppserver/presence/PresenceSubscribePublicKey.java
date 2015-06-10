@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.kontalk.xmppserver;
+package org.kontalk.xmppserver.presence;
 
+import org.kontalk.xmppserver.KontalkKeyring;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;

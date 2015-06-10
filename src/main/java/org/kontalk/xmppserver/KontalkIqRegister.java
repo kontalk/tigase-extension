@@ -27,6 +27,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.presence.JDBCPresenceRepository;
 import org.kontalk.xmppserver.probe.ProbeInfo;
 import org.kontalk.xmppserver.probe.ProbeListener;
 import org.kontalk.xmppserver.probe.ProbeManager;
@@ -52,10 +53,8 @@ import tigase.xmpp.*;
 import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -96,6 +95,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
     private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
 
+    /** Default user expire time in seconds. */
+    private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
+
     private String serverFingerprint;
     private PhoneNumberVerificationProvider provider;
 
@@ -103,6 +105,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private long statsRegisteredUsers;
     private long statsInvalidRegistrations;
     private Map<BareJID, String> requests;
+
+    private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
     @Override
     public String id() {
@@ -132,6 +136,32 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         catch (IllegalAccessException e) {
             throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
         }
+
+        // user repository for periodical purge of old users
+        String uri = (String) settings.get("db-uri");
+        userRepository.initRepository(uri, null);
+
+        long timeout = TimeUnit.DAYS.toMillis(1);
+        Timer taskTimer = new Timer(ID + " tasks", true);
+        taskTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    if (log.isLoggable(Level.FINEST)) {
+                        log.finest("Purging expired users.");
+                    }
+                    // TODO seconds should be in configuration
+                    List<BareJID> users = userRepository.getExpiredUsers(DEF_EXPIRE_SECONDS);
+                    for (BareJID user : users) {
+                        userRepository.removeUser(user);
+                    }
+                }
+                catch (TigaseDBException e) {
+                    log.log(Level.WARNING, "error purging expired users", e);
+                }
+            }
+        }, timeout, timeout);
+
     }
 
     @Override

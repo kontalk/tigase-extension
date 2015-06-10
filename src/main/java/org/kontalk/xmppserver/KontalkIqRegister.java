@@ -141,6 +141,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         String uri = (String) settings.get("db-uri");
         userRepository.initRepository(uri, null);
 
+        // delete expired users once a day
         long timeout = TimeUnit.DAYS.toMillis(1);
         Timer taskTimer = new Timer(ID + " tasks", true);
         taskTimer.scheduleAtFixedRate(new TimerTask() {
@@ -153,6 +154,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     // TODO seconds should be in configuration
                     List<BareJID> users = userRepository.getExpiredUsers(DEF_EXPIRE_SECONDS);
                     for (BareJID user : users) {
+                        if (log.isLoggable(Level.FINE)) {
+                            log.log(Level.FINE, "Deleting user {0}", user);
+                        }
                         userRepository.removeUser(user);
                     }
                 }

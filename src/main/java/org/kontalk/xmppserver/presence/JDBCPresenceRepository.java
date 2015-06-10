@@ -40,7 +40,7 @@ public class JDBCPresenceRepository extends JDBCRepository {
     private static final Logger log = Logger.getLogger(JDBCPresenceRepository.class.getName());
 
     private static final String GET_EXPIRED_USERS_QUERY_ID  = "presence_get_expired_users";
-    private static final String GET_EXPIRED_USERS_QUERY_SQL  = "select * from " + JDBCRepository.DEF_USERS_TBL + " where last_logout < (unix_timestamp(now()) - ?)";
+    private static final String GET_EXPIRED_USERS_QUERY_SQL  = "select user_id from " + JDBCRepository.DEF_USERS_TBL + " where last_logout > 0 and unix_timestamp(last_logout) < (unix_timestamp() - ?)";
 
     private boolean initialized = false;
 

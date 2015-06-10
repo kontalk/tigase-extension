@@ -22,8 +22,6 @@ import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Iq;
 import tigase.server.Packet;
-import tigase.server.XMPPServer;
-import tigase.server.xmppsession.SessionManager;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.roster.RosterAbstract;
@@ -43,7 +41,7 @@ import java.util.logging.Logger;
  * Inspired by the original Tigase implementation.
  * @author Daniele Ricci
  */
-public class LastActivity extends XMPPProcessor implements XMPPProcessorIfc {
+public class LastActivity extends XMPPProcessorAbstract {
     private static final Logger log = Logger.getLogger(LastActivity.class.getName());
     private static final String XMLNS = "jabber:iq:last";
     private final static String[] XMLNSS = new String[] { XMLNS };
@@ -88,98 +86,114 @@ public class LastActivity extends XMPPProcessor implements XMPPProcessorIfc {
         return ID;
     }
 
+    /** Request sent to server. Returns server uptime. */
     @Override
-    public void process(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws XMPPException {
-        if (log.isLoggable(Level.FINEST)) {
-            log.finest("Processing packet: " + packet.toString());
-        }
-        if (session == null) {
-            if (log.isLoggable( Level.FINE)) {
-                log.log( Level.FINE, "Session is null, ignoring packet: {0}", packet );
-            }
-            return;
-        }
-        if (!session.isAuthorized()) {
-            if ( log.isLoggable( Level.FINE ) ){
-                log.log( Level.FINE, "Session is not authorized, ignoring packet: {0}", packet );
-            }
-            return;
-        }
+    public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session,
+            NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
 
+        if (packet.getType() == StanzaType.get) {
+            results.offer(buildResult(packet, getUptime()));
+        }
+        else {
+            results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
+        }
+    }
+
+    /** Request going to some other entity. Forwards the packet if user is subscribed to the requested entity. */
+    @Override
+    public void processFromUserOutPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
         try {
-            if ((packet.getStanzaFrom() != null ) && !session.isUserId(packet.getStanzaFrom().getBareJID())) {
-                // RFC says: ignore such request
-                log.log( Level.WARNING, "Last activity request ''from'' attribute doesn't match "
-                        + "session: {0}, request: {1}", new Object[] { session, packet } );
-                return;
-            }
-
-            StanzaType type = packet.getType();
-            if (type == StanzaType.get) {
-                JID to = packet.getStanzaTo();
-
-                // request for the server - return uptime
-                if (to == null) {
-                    long last = getUptime();
-                    results.offer(buildResult(packet, last));
+            if (packet.getType() == StanzaType.get) {
+                JID user = packet.getStanzaTo();
+                if (session.isUserId(user.getBareJID()) || roster_util.isSubscribedTo(session, user)) {
+                    super.processFromUserOutPacket(connectionId, packet, session, repo, results, settings);
                 }
-
-                // request for a user
-                else if (roster_util.isSubscribedTo(session, to) || session.isUserId(to.getBareJID())) {
-                    BareJID user = to.getBareJID();
-                    long millis = 0;
-
-                    SessionManager sessMan = (SessionManager) XMPPServer.getComponent("sess-man");
-                    if (!sessMan.containsJid(user)) {
-                        long time = getTime(user);
-                        if (time > 0)
-                            millis = System.currentTimeMillis() - time;
-                    }
-
-                    results.offer(buildResult(packet, millis));
-                }
-
                 else {
-                    try {
-                        results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
-                    }
-                    catch (PacketErrorTypeException pe) {
-                        // ignored
+                    results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
+                }
+            }
+        }
+        catch (NotAuthorizedException e) {
+            log.log(Level.WARNING, "Not authorized to ask for subscription status for session {0}", session);
+        }
+        catch (TigaseDBException e) {
+            log.log(Level.WARNING, "Error requesting subscription status", e);
+        }
+    }
+
+    @Override
+    public void processServerSessionPacket(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo,
+        Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
+    }
+
+    /** Request arriving to an offline user. This method probably leaks from an external server, but what can we do? */
+    // FIXME WARNING this method probably leaks data if request is from an external server
+    @Override
+    public void processNullSessionPacket(Packet packet, NonAuthUserRepository repo, Queue<Packet> results,
+                                         Map<String, Object> settings) throws PacketErrorTypeException {
+
+        if (packet.getType() == StanzaType.get) {
+            BareJID requestedJid = packet.getStanzaTo().getBareJID();
+            final long last = getTime(requestedJid);
+
+            if (log.isLoggable(Level.FINEST)) {
+                log.finest("Get last:activity of offline user " + requestedJid + ". value=" + last);
+            }
+            if (last > 0) {
+                results.offer(buildResult(packet, System.currentTimeMillis() - last));
+            }
+            else {
+                results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
+            }
+        }
+        else if (packet.getType() == StanzaType.set) {
+            results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
+        }
+        else {
+            super.processNullSessionPacket(packet, repo, results, settings);
+        }
+    }
+
+    /** Request arriving to a local user. Returns last activity if subscribed from the sender. */
+    @Override
+    public void processToUserPacket(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo,
+            Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
+        try {
+            if (packet.getType() == StanzaType.get) {
+                JID requester = packet.getStanzaFrom();
+                if (requester != null && (session.isUserId(requester.getBareJID()) || roster_util.isSubscribedFrom(session, requester))) {
+                    BareJID user = packet.getStanzaTo().getBareJID();
+                    long last = getTime(user);
+
+                    if (last > 0) {
+                        results.offer(buildResult(packet, System.currentTimeMillis() - last));
+                        return;
                     }
                 }
 
-                packet.processedBy(ID);
+                // something went wrong
+                results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
             }
-
-        }
-        catch ( NotAuthorizedException e ) {
-            log.log( Level.WARNING, "Received last activity request but user session is not authorized yet: {0}", packet );
-            try {
-                results.offer( Authorization.NOT_AUTHORIZED.getResponseMessage( packet,
-                        "You must authorize session first.", true ) );
+            else if (packet.getType() == StanzaType.set) {
+                results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, "Message type is incorrect", true));
             }
-            catch (PacketErrorTypeException pe) {
-                // ignored
+            else {
+                super.processToUserPacket(packet, session, repo, results, settings);
             }
         }
-        catch ( TigaseDBException e ) {
-            log.log( Level.WARNING, "Database problem, please contact admin:", e );
-            try {
-                results.offer( Authorization.INTERNAL_SERVER_ERROR.getResponseMessage( packet,
-                        "Database access problem, please contact administrator.", true ) );
-            }
-            catch (PacketErrorTypeException pe) {
-                // ignored
-            }
+        catch (NotAuthorizedException e) {
+            log.log(Level.WARNING, "Not authorized to ask for subscription status for session {0}", session);
         }
-
+        catch (TigaseDBException e) {
+            log.log(Level.WARNING, "Error requesting subscription status", e);
+        }
     }
 
     private Packet buildResult(Packet packet, long millis) {
         Packet resp = packet.okResult((Element) null, 0);
         long result = millis / 1000;
         Element q = new Element("query", new String[] { "xmlns", "seconds" }, new String[] { "jabber:iq:last",
-                "" + result });
+                String.valueOf(result) });
 
         resp.getElement().addChild(q);
         return resp;

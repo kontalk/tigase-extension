@@ -26,6 +26,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -41,6 +42,9 @@ public class JDBCPresenceRepository extends JDBCRepository {
 
     private static final String GET_EXPIRED_USERS_QUERY_ID  = "presence_get_expired_users";
     private static final String GET_EXPIRED_USERS_QUERY_SQL  = "select user_id from " + JDBCRepository.DEF_USERS_TBL + " where last_logout > 0 and unix_timestamp(last_logout) < (unix_timestamp() - ?)";
+
+    private static final String GET_LOGOUT_QUERY_ID  = "presence_get_last_logout";
+    private static final String GET_LOGOUT_QUERY_SQL  = "select last_logout from " + JDBCRepository.DEF_USERS_TBL + " where sha1_user_id = sha1(?)";
 
     private boolean initialized = false;
 
@@ -59,6 +63,7 @@ public class JDBCPresenceRepository extends JDBCRepository {
             DataRepository data_repo = getRepository();
 
             data_repo.initPreparedStatement(GET_EXPIRED_USERS_QUERY_ID, GET_EXPIRED_USERS_QUERY_SQL);
+            data_repo.initPreparedStatement(GET_LOGOUT_QUERY_ID, GET_LOGOUT_QUERY_SQL);
         }
         catch (Exception e) {
             log.log(Level.WARNING, "Error initializing message repository", e);
@@ -91,6 +96,32 @@ public class JDBCPresenceRepository extends JDBCRepository {
         }
 
         return users;
+    }
+
+    public Date getLastLogout(BareJID user) throws TigaseDBException {
+        ResultSet rs        = null;
+        DataRepository data_repo = getRepository();
+
+        try {
+            PreparedStatement stmt = data_repo.getPreparedStatement(null,
+                    GET_LOGOUT_QUERY_ID);
+
+            synchronized (stmt) {
+                stmt.setString(1, user.toString());
+                rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getTimestamp(1);
+                }
+            }
+
+            return null;
+        }
+        catch (SQLException e) {
+            throw new TigaseDBException("Problem loading user info from repository", e);
+        }
+        finally {
+            data_repo.release(null, rs);
+        }
     }
 
 }

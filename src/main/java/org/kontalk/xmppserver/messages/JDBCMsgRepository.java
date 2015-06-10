@@ -99,13 +99,15 @@ public class JDBCMsgRepository implements MsgRepository {
         try {
             long uid = user_repo.getUserUID(user);
             stmt = data_repo.getPreparedStatement(user, MSG_QUERY_LOAD_ID);
-            stmt.setLong(1, uid);
-            rs = stmt.executeQuery();
-
             StringBuilder sb = new StringBuilder();
-            while (rs.next()) {
-                String stanza = rs.getString(MSG_STANZA_COLUMN);
-                sb.append(stanza);
+            synchronized (stmt) {
+                stmt.setLong(1, uid);
+                rs = stmt.executeQuery();
+
+                while (rs.next()) {
+                    String stanza = rs.getString(MSG_STANZA_COLUMN);
+                    sb.append(stanza);
+                }
             }
 
             if (sb.length() > 0) {
@@ -134,8 +136,10 @@ public class JDBCMsgRepository implements MsgRepository {
 
     private int deleteMessages(long uid) throws SQLException {
         PreparedStatement stmt = data_repo.getPreparedStatement(null, MSG_QUERY_DELETE_ID);
-        stmt.setLong(1, uid);
-        return stmt.executeUpdate();
+        synchronized (stmt) {
+            stmt.setLong(1, uid);
+            return stmt.executeUpdate();
+        }
     }
 
     @Override
@@ -148,14 +152,16 @@ public class JDBCMsgRepository implements MsgRepository {
                 throw new UserNotFoundException("user not found: " + user);
 
             stmt = data_repo.getPreparedStatement(user, MSG_QUERY_STORE_ID);
-            stmt.setLong(1, uid);
-            stmt.setString(2, msg.toString());
-            stmt.setTimestamp(3, new java.sql.Timestamp(System.currentTimeMillis()));
-            if (expire != null)
-                stmt.setTimestamp(4, new java.sql.Timestamp(expire.getTime()));
-            else
-                stmt.setNull(4, Types.TIMESTAMP);
-            stmt.execute();
+            synchronized (stmt) {
+                stmt.setLong(1, uid);
+                stmt.setString(2, msg.toString());
+                stmt.setTimestamp(3, new java.sql.Timestamp(System.currentTimeMillis()));
+                if (expire != null)
+                    stmt.setTimestamp(4, new java.sql.Timestamp(expire.getTime()));
+                else
+                    stmt.setNull(4, Types.TIMESTAMP);
+                stmt.execute();
+            }
         }
         catch (SQLException e) {
             throw new TigaseDBException("database error", e);

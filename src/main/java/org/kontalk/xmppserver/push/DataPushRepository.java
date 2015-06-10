@@ -70,10 +70,12 @@ public class DataPushRepository implements PushRepository {
         PreparedStatement stm;
         try {
             stm = repo.getPreparedStatement(jid, CREATE_QUERY_ID);
-            stm.setString(1, jid.toString());
-            stm.setString(2, provider);
-            stm.setString(3, registrationId);
-            stm.execute();
+            synchronized (stm) {
+                stm.setString(1, jid.toString());
+                stm.setString(2, provider);
+                stm.setString(3, registrationId);
+                stm.execute();
+            }
         }
         catch (SQLException e) {
             throw new TigaseDBException(e.getMessage(), e);
@@ -85,9 +87,11 @@ public class DataPushRepository implements PushRepository {
         PreparedStatement stm;
         try {
             stm = repo.getPreparedStatement(jid, DELETE_QUERY_ID);
-            stm.setString(1, jid.toString());
-            stm.setString(2, provider);
-            stm.execute();
+            synchronized (stm) {
+                stm.setString(1, jid.toString());
+                stm.setString(2, provider);
+                stm.execute();
+            }
         }
         catch (SQLException e) {
             throw new TigaseDBException(e.getMessage(), e);
@@ -100,17 +104,19 @@ public class DataPushRepository implements PushRepository {
         ResultSet rs = null;
         try {
             stm = repo.getPreparedStatement(jid, SELECT_QUERY_ID);
-            stm.setString(1, jid.toString());
-            rs = stm.executeQuery();
+            synchronized (stm) {
+                stm.setString(1, jid.toString());
+                rs = stm.executeQuery();
 
-            List<PushRegistrationInfo> list = new LinkedList<PushRegistrationInfo>();
-            if (rs.next()) {
-                String provider = rs.getString(1);
-                String regId = rs.getString(2);
-                list.add(new PushRegistrationInfo(provider, regId));
+                List<PushRegistrationInfo> list = new LinkedList<PushRegistrationInfo>();
+                if (rs.next()) {
+                    String provider = rs.getString(1);
+                    String regId = rs.getString(2);
+                    list.add(new PushRegistrationInfo(provider, regId));
+                }
+
+                return list;
             }
-
-            return list;
         }
         catch (SQLException e) {
             throw new TigaseDBException(e.getMessage(), e);

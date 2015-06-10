@@ -18,7 +18,6 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.messaging.sdk.SmsSubmissionResult;
 import com.nexmo.verify.sdk.CheckResult;
 import com.nexmo.verify.sdk.NexmoVerifyClient;
 import com.nexmo.verify.sdk.VerifyResult;
@@ -59,7 +58,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public String startVerification(XMPPResourceConnection session, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+    public String startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
         NexmoVerifyClient client;
 
         try {

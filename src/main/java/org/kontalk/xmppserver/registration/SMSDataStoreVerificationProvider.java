@@ -78,11 +78,11 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
     }
 
     @Override
-    public String startVerification(XMPPResourceConnection session, String phoneNumber)
+    public String startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
 
         // generate verification code
-        BareJID jid = KontalkAuth.toBareJID(phoneNumber, session.getDomainAsJID().getDomain());
+        BareJID jid = KontalkAuth.toBareJID(phoneNumber, domain);
         String code = generateVerificationCode(jid);
 
         // call implementation

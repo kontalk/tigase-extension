@@ -18,21 +18,19 @@
 
 package org.kontalk.xmppserver;
 
-import java.io.IOException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import com.google.i18n.phonenumbers.NumberParseException;
+import com.google.i18n.phonenumbers.PhoneNumberUtil;
+import com.google.i18n.phonenumbers.Phonenumber;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.probe.ProbeInfo;
+import org.kontalk.xmppserver.probe.ProbeListener;
+import org.kontalk.xmppserver.probe.ProbeManager;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
-
 import org.kontalk.xmppserver.registration.VerificationRepository;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
@@ -44,22 +42,22 @@ import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
 import tigase.server.Packet;
+import tigase.server.XMPPServer;
+import tigase.server.xmppsession.SessionManager;
 import tigase.stats.StatisticsList;
 import tigase.util.Base64;
 import tigase.xml.Element;
-import tigase.xmpp.Authorization;
-import tigase.xmpp.BareJID;
-import tigase.xmpp.NotAuthorizedException;
-import tigase.xmpp.PacketErrorTypeException;
-import tigase.xmpp.StanzaType;
-import tigase.xmpp.XMPPException;
-import tigase.xmpp.XMPPProcessor;
-import tigase.xmpp.XMPPProcessorIfc;
-import tigase.xmpp.XMPPResourceConnection;
+import tigase.xmpp.*;
 
-import com.google.i18n.phonenumbers.NumberParseException;
-import com.google.i18n.phonenumbers.PhoneNumberUtil;
-import com.google.i18n.phonenumbers.Phonenumber;
+import java.io.IOException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -68,7 +66,7 @@ import com.google.i18n.phonenumbers.Phonenumber;
  * @author Daniele Ricci
  */
 @TODO(note = "Support for multiple virtual hosts")
-public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc {
+public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc, ProbeListener {
 
     private static final String[][] ELEMENTS = {Iq.IQ_QUERY_PATH};
     public static final String ID = "kontalk:jabber:iq:register";
@@ -86,6 +84,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String FORM_FIELD_CODE = "code";
     private static final String FORM_FIELD_PUBLICKEY = "publickey";
     private static final String FORM_FIELD_REVOKED = "revoked";
+    private static final String FORM_FIELD_FORCE = "force";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
             new String[]{"http://jabber.org/features/iq-register"})};
@@ -182,10 +181,19 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             // phone number: verification code
                             String phone = form.getAsString(FORM_FIELD_PHONE);
                             if (!session.isAuthorized() && phone != null) {
-                                Packet response = registerPhone(session, packet, phone);
+                                boolean force;
+                                try {
+                                    force = form.getAsBoolean(FORM_FIELD_FORCE);
+                                }
+                                catch (NullPointerException e) {
+                                    force = false;
+                                }
+
+                                Packet response = registerPhone(session, packet, phone, force, results);
                                 statsRegistrationAttempts++;
                                 packet.processedBy(ID);
-                                results.offer(response);
+                                if (response != null)
+                                    results.offer(response);
                                 break;
                             }
 
@@ -304,7 +312,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         throw new PGPException("client certificate not found");
     }
 
-    private Packet registerPhone(XMPPResourceConnection session, Packet packet, String phoneInput) throws PacketErrorTypeException, TigaseDBException {
+    private Packet registerPhone(XMPPResourceConnection session, Packet packet, String phoneInput, boolean force, Queue<Packet> results)
+            throws PacketErrorTypeException, TigaseDBException, NoConnectionIdException {
         String phone;
         try {
             phone = formatPhoneNumber(phoneInput);
@@ -319,8 +328,42 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         log.log(Level.FINEST, "Registering phone number: {0}", phone);
 
         BareJID jid = KontalkAuth.toBareJID(phone, session.getDomainAsJID().getDomain());
+
+        if (!force) {
+            // probe user in the network
+            RegistrationInfo regInfo = new RegistrationInfo();
+            regInfo.packet = packet;
+            regInfo.jid = jid;
+            regInfo.phone = phone;
+            regInfo.connectionId = session.getConnectionId();
+
+            String probeId = ProbeManager.getInstance().probe(jid, this, regInfo, results);
+            if (probeId == null) {
+                if (log.isLoggable(Level.FINE)) {
+                    log.log(Level.FINE, "user found locally: {0}", jid);
+                }
+
+                // notify the user immediately
+                return errorUserExists(packet);
+            }
+            else {
+                if (log.isLoggable(Level.FINER)) {
+                    log.log(Level.FINER, "probe sent for {0} with id {1}", new String[]{jid.toString(), probeId});
+                }
+
+                // do nothing and wait for the probe result
+                return null;
+            }
+        }
+        else {
+            return startVerification(session.getDomainAsJID().getDomain(), packet, jid, phone);
+        }
+    }
+
+    private Packet startVerification(String domain, Packet packet, BareJID jid, String phone)
+            throws TigaseDBException, PacketErrorTypeException {
         try {
-            String requestId = provider.startVerification(session, phone);
+            String requestId = provider.startVerification(domain, phone);
             if (requestId != null) {
                 requests.put(jid, requestId);
             }
@@ -393,6 +436,14 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         else {
             results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, false));
         }
+    }
+
+    private Packet errorUserExists(Packet packet) {
+        return packet.errorResult("modify",
+                Authorization.CONFLICT.getErrorCode(),
+                Authorization.CONFLICT.getCondition(),
+                "Another user is registered with the same id.",
+                true);
     }
 
     private String formatPhoneNumber(String phoneInput) throws NumberParseException {
@@ -481,4 +532,38 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         list.add(getComponentInfo().getName(), "Invalid registrations", statsInvalidRegistrations, Level.INFO);
     }
 
+    @Override
+    public boolean onProbeResult(ProbeInfo info, Object userData, Queue<Packet> results) {
+        if (log.isLoggable(Level.FINEST)) {
+            log.finest("probe result: " + info);
+        }
+
+        RegistrationInfo regInfo = (RegistrationInfo) userData;
+        Set<BareJID> storage = info.getStorage();
+        if (storage != null && storage.size() > 0) {
+            results.offer(errorUserExists(regInfo.packet));
+        }
+        else {
+            SessionManager sm = (SessionManager) XMPPServer.getComponent("sess-man");
+            try {
+                Packet result = startVerification(sm.getDefVHostItem().getDomain(), regInfo.packet, regInfo.jid, regInfo.phone);
+                if (result != null) {
+                    result.setPacketTo(regInfo.connectionId);
+                    results.offer(result);
+                }
+            }
+            catch (Exception e) {
+                log.log(Level.WARNING, "error starting verification", e);
+                // TODO notify client
+            }
+        }
+        return true;
+    }
+
+    private static final class RegistrationInfo {
+        Packet packet;
+        BareJID jid;
+        String phone;
+        JID connectionId;
+    }
 }

@@ -25,7 +25,9 @@ import tigase.db.UserRepository;
 import tigase.server.AbstractMessageReceiver;
 import tigase.server.Iq;
 import tigase.server.Packet;
+import tigase.server.XMPPServer;
 import tigase.util.TigaseStringprepException;
+import tigase.vhosts.VHostManagerIfc;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 
@@ -55,6 +57,8 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
     // request ID : probe info
     private final Map<String, ProbeInfo> probes = new HashMap<>();
+    private ProbeManager probeManager;
+    private JID authorizedSender;
 
     private JID publicId;
 
@@ -144,17 +148,27 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
                         if (!remotePending) {
                             // local results only
-                            // return result immediately
-                            Element query = new Element("query");
-                            query.setXMLNS(XMLNS);
 
-                            for (BareJID jid : found) {
-                                Element item = new Element("item");
-                                item.setAttribute("jid", jid.toString());
-                                query.addChild(item);
+                            // notify listener first
+                            Queue<Packet> results = new LinkedList<>();
+                            ProbeInfo info = new ProbeInfo();
+                            info.stanzaId = packet.getStanzaId();
+                            if (!probeManager.notifyProbeResult(info, results)) {
+                                // return result immediately
+                                Element query = new Element("query");
+                                query.setXMLNS(XMLNS);
+
+                                for (BareJID jid : found) {
+                                    Element item = new Element("item");
+                                    item.setAttribute("jid", jid.toString());
+                                    query.addChild(item);
+                                }
+
+                                addOutPacket(packet.okResult(query, 0));
                             }
 
-                            addOutPacket(packet.okResult(query, 0));
+                            // add any packet queued by the listener
+                            addOutPackets(results);
                         }
 
                         // packet was processed successfully
@@ -275,22 +289,29 @@ public class ProbeComponent extends AbstractMessageReceiver {
     }
 
     private void sendResult(ProbeInfo info) {
-        Element iq = new Element(Iq.ELEM_NAME);
-        iq.setAttribute(Iq.ID_ATT, info.stanzaId);
-        iq.setAttribute(Iq.TYPE_ATT, StanzaType.result.toString());
+        // notify listener first
+        Queue<Packet> results = new LinkedList<>();
+        if (!probeManager.notifyProbeResult(info, results)) {
+            Element iq = new Element(Iq.ELEM_NAME);
+            iq.setAttribute(Iq.ID_ATT, info.stanzaId);
+            iq.setAttribute(Iq.TYPE_ATT, StanzaType.result.toString());
 
-        Element query = new Element("query");
-        query.setXMLNS(XMLNS);
+            Element query = new Element("query");
+            query.setXMLNS(XMLNS);
 
-        for (BareJID jid : info.storage) {
-            Element item = new Element("item");
-            item.setAttribute("jid", jid.toString());
-            query.addChild(item);
+            for (BareJID jid : info.storage) {
+                Element item = new Element("item");
+                item.setAttribute("jid", jid.toString());
+                query.addChild(item);
+            }
+
+            iq.addChild(query);
+
+            addOutPacket(Packet.packetInstance(iq, null, info.sender));
         }
 
-        iq.addChild(query);
-
-        addOutPacket(Packet.packetInstance(iq, null, info.sender));
+        // add any packet queued by the listener
+        addOutPackets(results);
     }
 
     @Override
@@ -371,6 +392,9 @@ public class ProbeComponent extends AbstractMessageReceiver {
         catch (Exception e) {
             throw new ConfigurationException("unable to initialize user data repository", e);
         }
+
+        // init probe manager
+        probeManager = ProbeManager.init(user_repository);
     }
 
     @Override
@@ -384,25 +408,28 @@ public class ProbeComponent extends AbstractMessageReceiver {
     }
 
     @Override
+    public void setVHostManager(VHostManagerIfc manager) {
+        super.setVHostManager(manager);
+        authorizedSender = JID.jidInstanceNS("internal", manager.getDefVHostItem().getDomain());
+    }
+
+    @Override
     public List<Element> getDiscoFeatures(JID from) {
         return DISCO_FEATURES;
     }
 
-    private static final class ProbeInfo {
-        /** Timestamp of request. */
-        private long timestamp;
-        /** The final destination user. */
-        private JID sender;
-        /** Stanza ID. */
-        private String stanzaId;
-        /** Request ID. */
-        private String id;
-        /** Storage for matched JIDs. */
-        private Set<BareJID> storage;
-        /** Number of replies expected. */
-        private int maxReplies;
-        /** Number of replies received. */
-        private int numReplies;
+    public static Packet createProbeRequest(String id, BareJID... users) {
+        ProbeComponent instance = (ProbeComponent) XMPPServer.getComponent("probe");
+        String domain = instance.getDefVHostItem().getDomain();
+
+        Element match = new Element("query", new String[] { "xmlns" }, new String[] { XMLNS });
+        for (BareJID user : users)
+            match.addChild(new Element("item", new String[] { "jid" }, new String[] { user.toString() }));
+
+        Element iq = new Element("iq", new String[] { "id", "type" }, new String[] { id, StanzaType.get.toString() });
+        iq.addChild(match);
+
+        return Packet.packetInstance(iq, instance.authorizedSender, JID.jidInstanceNS("probe", domain));
     }
 
 }

@@ -143,7 +143,10 @@ public class LastActivity extends XMPPProcessorAbstract {
                 results.offer(buildResult(packet, System.currentTimeMillis() - last));
             }
             else {
-                results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true));
+                // workaround infinite loop Tigase bug
+                Packet result = Authorization.ITEM_NOT_FOUND.getResponseMessage(packet, "Unknown last activity time", true);
+                result.setPacketTo(packet.getStanzaTo());
+                results.offer(result);
             }
         }
         else if (packet.getType() == StanzaType.set) {

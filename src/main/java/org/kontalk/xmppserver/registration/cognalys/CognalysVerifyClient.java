@@ -128,7 +128,7 @@ public class CognalysVerifyClient {
     private JsonObject _confirm(String keymatch, String otp) throws IOException {
         List<NameValuePair> params = new ArrayList<>();
         params.add(new BasicNameValuePair("keymatch", keymatch));
-        params.add(new BasicNameValuePair("keymatch", otp));
+        params.add(new BasicNameValuePair("otp", otp));
         return _get(CONFIRM_URL, params);
     }
 

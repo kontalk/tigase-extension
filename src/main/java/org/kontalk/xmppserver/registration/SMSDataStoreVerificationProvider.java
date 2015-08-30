@@ -78,7 +78,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
     }
 
     @Override
-    public String startVerification(String domain, String phoneNumber)
+    public RegistrationRequest startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
 
         // generate verification code
@@ -89,14 +89,14 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         sendVerificationCode(phoneNumber, code);
 
         // request id will be used to map back JID
-        return jid.toString();
+        return new SMSDataStoreRequest(jid);
     }
 
     @Override
-    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof)
+    public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof)
             throws IOException, TigaseDBException {
-        BareJID jid = BareJID.bareJIDInstanceNS(requestId);
-        return verify(jid, proof);
+        SMSDataStoreRequest myRequest = (SMSDataStoreRequest) request;
+        return verify(myRequest.getJid(), proof);
     }
 
     /** This will be called in the implementation to do the actual sending. */
@@ -132,6 +132,27 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
             catch (TigaseDBException e) {
                 log.log(Level.WARNING, "unable to purge old registration entries");
             }
+        }
+    }
+
+    @Override
+    public boolean supportsRequest(RegistrationRequest request) {
+        return request instanceof SMSDataStoreRequest;
+    }
+
+    private static final class SMSDataStoreRequest implements RegistrationRequest {
+        private final BareJID jid;
+        public SMSDataStoreRequest(BareJID jid) {
+            this.jid = jid;
+        }
+
+        @Override
+        public String getSenderId() {
+            return null;
+        }
+
+        public BareJID getJid() {
+            return jid;
         }
     }
 

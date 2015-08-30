@@ -40,17 +40,19 @@ public interface PhoneNumberVerificationProvider {
     /**
      * Initiates a verification.
      * @param phoneNumber the phone number being verified
-     * @return a request ID of some kind that you will give to {@link #endVerification}.
+     * @return a request object of some kind that you will give to {@link #endVerification}.
      */
-    public String startVerification(String domain, String phoneNumber)
+    public RegistrationRequest startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException;
 
     /**
      * Ends a verification.
-     * @param requestId request ID as returned by {@link #startVerification}
+     * @param request request object as returned by {@link #startVerification}
      * @param proof the proof of the verification (e.g. verification code)
      * @return true if verification succeded, false otherwise.
      */
-    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException;
+    public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException;
 
+    /** Returns true if this provider supports this kind if registration request. */
+    public boolean supportsRequest(RegistrationRequest request);
 }

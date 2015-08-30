@@ -58,7 +58,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public String startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+    public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
         NexmoVerifyClient client;
 
         try {
@@ -79,7 +79,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
         if (result != null) {
             if (result.getStatus() == VerifyResult.STATUS_OK) {
-                return result.getRequestId();
+                return new NexmoVerifyRequest(result.getRequestId());
             }
             else {
                 throw new IOException("verification did not start (" + result.getErrorText() + ")");
@@ -91,7 +91,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException {
+    public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
         NexmoVerifyClient client;
 
         try {
@@ -104,7 +104,8 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
         CheckResult result;
 
         try {
-            result = client.check(requestId, proof);
+            NexmoVerifyRequest myRequest = (NexmoVerifyRequest) request;
+            result = client.check(myRequest.getId(), proof);
         }
         catch (SAXException e) {
             throw new IOException("Error requesting verification", e);
@@ -123,6 +124,27 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
         }
         else {
             throw new IOException("Unknown response");
+        }
+    }
+
+    @Override
+    public boolean supportsRequest(RegistrationRequest request) {
+        return request instanceof NexmoVerifyRequest;
+    }
+
+    private static final class NexmoVerifyRequest implements RegistrationRequest {
+        private final String id;
+        public NexmoVerifyRequest(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String getSenderId() {
+            return null;
+        }
+
+        public String getId() {
+            return id;
         }
     }
 

@@ -54,13 +54,19 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public String startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
+    public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
         CognalysVerifyClient client = new CognalysVerifyClient(username, password);
 
+        // remove plus
+        if (phoneNumber.charAt(0) == '+')
+            phoneNumber = phoneNumber.substring(1);
+
+        log.fine("Requesting Cognalys verification for " + phoneNumber);
         RequestResult result = client.request(phoneNumber);
         if (result != null) {
-            if (result.getStatus() == RequestResult.STATUS_SUCCESS) {
-                return result.getKeymatch();
+            if (result.getStatus() == RequestResult.STATUS_SUCCESS ||  /**** TEST ****/ result.getError(303) != null) {
+                log.fine("Requested to Cognalys: " + result.getKeymatch());
+                return new CognalysRequest(result.getKeymatch(), result.getOtpStart());
             }
             else {
                 throw new IOException("verification did not start (" + result.getErrors() + ")");
@@ -72,16 +78,21 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
     }
 
     @Override
-    public boolean endVerification(XMPPResourceConnection session, String requestId, String proof) throws IOException, TigaseDBException {
+    public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
         CognalysVerifyClient client = new CognalysVerifyClient(username, password);
 
-        ConfirmResult result = client.confirm(requestId, proof);
+        log.fine("Confirming to Cognalys: " + request + ", OTP: " + proof);
+        CognalysRequest myRequest = (CognalysRequest) request;
+        ConfirmResult result = client.confirm(myRequest.getKeymatch(), myRequest.getOtp(proof));
         if (result != null) {
             if (result.getStatus() == ConfirmResult.STATUS_SUCCESS) {
                 return true;
             }
-            else if (result.getError(401) != null || result.getError(400) != null) {
-                // 401: "OTP is Wrong", 400: "Keymatch or OTP is not valid"
+            else if (result.getError(401) != null || result.getError(400) != null || result.getError(306) != null) {
+                // 401: "OTP is Wrong"
+                // 400: "Keymatch or OTP is not valid"
+                // 306: "OTP is missing or not valid"
+                log.fine("Confirmation error: " + result.getErrors());
                 return false;
             }
             else {
@@ -90,6 +101,40 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
         }
         else {
             throw new IOException("Unknown response");
+        }
+    }
+
+    @Override
+    public boolean supportsRequest(RegistrationRequest request) {
+        return request instanceof CognalysRequest;
+    }
+
+    private static final class CognalysRequest implements RegistrationRequest {
+        private final String keymatch;
+        private final String otpStart;
+
+        public CognalysRequest(String keymatch, String otpStart) {
+            this.keymatch = keymatch;
+            // seems that the plus at the beginning doesn't work
+            this.otpStart = otpStart;
+        }
+
+        public String getKeymatch() {
+            return keymatch;
+        }
+
+        public String getOtp(String proof) {
+            return ((otpStart != null && otpStart.charAt(0) == '+') ? otpStart.substring(1) : otpStart) + proof;
+        }
+
+        @Override
+        public String getSenderId() {
+            return otpStart + "?????";
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + " [keymatch=" + keymatch + ", otp_start=" + otpStart + "]";
         }
     }
 

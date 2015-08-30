@@ -36,4 +36,14 @@ abstract class AbstractResult {
         return errors;
     }
 
+    public CognalysError getError(int code) {
+        if (errors != null) {
+            for (CognalysError error : errors) {
+                if (error.getCode() == code)
+                    return error;
+            }
+        }
+        return null;
+    }
+
 }

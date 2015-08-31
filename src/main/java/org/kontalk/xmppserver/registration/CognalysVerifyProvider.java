@@ -64,7 +64,7 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
         log.fine("Requesting Cognalys verification for " + phoneNumber);
         RequestResult result = client.request(phoneNumber);
         if (result != null) {
-            if (result.getStatus() == RequestResult.STATUS_SUCCESS ||  /**** TEST ****/ result.getError(303) != null) {
+            if (result.getStatus() == RequestResult.STATUS_SUCCESS) {
                 log.fine("Requested to Cognalys: " + result.getKeymatch());
                 return new CognalysRequest(result.getKeymatch(), result.getOtpStart());
             }

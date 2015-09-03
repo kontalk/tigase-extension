@@ -140,6 +140,11 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         return request instanceof SMSDataStoreRequest;
     }
 
+    @Override
+    public String getChallengeType() {
+        return CHALLENGE_PIN;
+    }
+
     private static final class SMSDataStoreRequest implements RegistrationRequest {
         private final BareJID jid;
         public SMSDataStoreRequest(BareJID jid) {

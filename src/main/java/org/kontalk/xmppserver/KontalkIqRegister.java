@@ -461,8 +461,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         catch (IOException e) {
             // some kind of error
             statsInvalidRegistrations++;
-            log.log(Level.WARNING, "Failed to send verification code for: {0} ({1})", new Object[] { jid, e.getMessage() });
-            return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to send SMS.", true);
+            log.log(Level.WARNING, "Failed verify number for: {0} ({1})", new Object[] { jid, e.getMessage() });
+
+            if (fallbackProvider != null && provider != fallbackProvider) {
+                // we might try with the fallback provider now
+                return startVerification(domain, packet, jid, phone, fallbackProvider);
+            }
+            else {
+                return Authorization.NOT_ACCEPTABLE.getResponseMessage(packet, "Unable to verify number.", true);
+            }
         }
         catch (VerificationRepository.AlreadyRegisteredException e) {
             // throttling registrations
@@ -482,7 +489,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         Form form = new Form("form", null, null);
 
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
-        form.addField(Field.fieldTextSingle("from", from, "SMS sender"));
+        form.addField(Field.fieldTextSingle("from", from, "Sender ID"));
+        form.addField(Field.fieldTextSingle("challenge", provider.getChallengeType(), "Challenge type"));
 
         query.addChild(form.getElement());
         return query;

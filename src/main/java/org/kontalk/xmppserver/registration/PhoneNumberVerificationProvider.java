@@ -31,6 +31,11 @@ import java.util.Map;
  */
 public interface PhoneNumberVerificationProvider {
 
+    /** Challenge the user with a verification PIN sent through a SMS or a told through a phone call. */
+    public static final String CHALLENGE_PIN = "pin";
+    /** Challenge the user with a missed call from a random number and making the user guess the digits. */
+    public static final String CHALLENGE_MISSED_CALL = "missedcall";
+
     public void init(Map<String, Object> settings) throws TigaseDBException;
 
     public String getSenderId();
@@ -55,4 +60,7 @@ public interface PhoneNumberVerificationProvider {
 
     /** Returns true if this provider supports this kind if registration request. */
     public boolean supportsRequest(RegistrationRequest request);
+
+    public String getChallengeType();
+
 }

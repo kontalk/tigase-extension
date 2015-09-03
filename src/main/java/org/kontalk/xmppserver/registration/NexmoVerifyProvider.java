@@ -132,6 +132,11 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
         return request instanceof NexmoVerifyRequest;
     }
 
+    @Override
+    public String getChallengeType() {
+        return CHALLENGE_PIN;
+    }
+
     private static final class NexmoVerifyRequest implements RegistrationRequest {
         private final String id;
         public NexmoVerifyRequest(String id) {

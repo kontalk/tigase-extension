@@ -109,6 +109,11 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
         return request instanceof CognalysRequest;
     }
 
+    @Override
+    public String getChallengeType() {
+        return CHALLENGE_MISSED_CALL;
+    }
+
     private static final class CognalysRequest implements RegistrationRequest {
         private final String keymatch;
         private final String otpStart;

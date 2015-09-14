@@ -141,21 +141,23 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
 
         String fallbackProviderClassName = (String) settings.get("fallback-provider");
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends PhoneNumberVerificationProvider> providerClass =
-                    (Class<? extends PhoneNumberVerificationProvider>) Class.forName(fallbackProviderClassName);
-            fallbackProvider = providerClass.newInstance();
-            fallbackProvider.init(getPrefixedSettings(settings, "fallback-"));
-        }
-        catch (ClassNotFoundException e) {
-            throw new TigaseDBException("Fallback provider class not found: " + fallbackProviderClassName);
-        }
-        catch (InstantiationException e) {
-            throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
-        }
-        catch (IllegalAccessException e) {
-            throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
+        if (fallbackProviderClassName != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                Class<? extends PhoneNumberVerificationProvider> providerClass =
+                        (Class<? extends PhoneNumberVerificationProvider>) Class.forName(fallbackProviderClassName);
+                fallbackProvider = providerClass.newInstance();
+                fallbackProvider.init(getPrefixedSettings(settings, "fallback-"));
+            }
+            catch (ClassNotFoundException e) {
+                throw new TigaseDBException("Fallback provider class not found: " + fallbackProviderClassName);
+            }
+            catch (InstantiationException e) {
+                throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
+            }
+            catch (IllegalAccessException e) {
+                throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
+            }
         }
 
         // user repository for periodical purge of old users

@@ -110,7 +110,12 @@ public class JDBCPresenceRepository extends JDBCRepository {
                 stmt.setString(1, user.toString());
                 rs = stmt.executeQuery();
                 if (rs.next()) {
-                    return rs.getTimestamp(1);
+                    try {
+                        return rs.getTimestamp(1);
+                    }
+                    catch (SQLException e) {
+                        return null;
+                    }
                 }
             }
 

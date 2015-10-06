@@ -18,17 +18,18 @@
 
 package org.kontalk.xmppserver.presence;
 
+import org.apache.commons.lang3.StringUtils;
+import tigase.conf.Configurable;
 import tigase.db.*;
 import tigase.db.jdbc.JDBCRepository;
+import tigase.server.XMPPServer;
+import tigase.server.xmppsession.SessionManager;
 import tigase.xmpp.BareJID;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -40,13 +41,22 @@ import java.util.logging.Logger;
 public class JDBCPresenceRepository extends JDBCRepository {
     private static final Logger log = Logger.getLogger(JDBCPresenceRepository.class.getName());
 
+    //private static final String[] SYSTEM_USERS = { "db-properties", "vhost-manager" };
+
     private static final String GET_EXPIRED_USERS_QUERY_ID  = "presence_get_expired_users";
-    private static final String GET_EXPIRED_USERS_QUERY_SQL  = "select user_id from " + JDBCRepository.DEF_USERS_TBL + " where last_logout > 0 and unix_timestamp(last_logout) < (unix_timestamp() - ?)";
+    private static final String GET_EXPIRED_USERS_QUERY_SQL  =
+            "select user_id from " + JDBCRepository.DEF_USERS_TBL + " where " +
+            "instr(user_id, '@') > 0 %s and (" +
+            "(last_logout > 0 and unix_timestamp(last_logout) < (unix_timestamp() - ?)) or " +
+            "(last_logout = 0 and unix_timestamp(acc_create_time) < (unix_timestamp() - ?)))";
+    private static final String EXPIRED_USERS_EXTRA_SQL = "and user_id not in (%s)";
 
     private static final String GET_LOGOUT_QUERY_ID  = "presence_get_last_logout";
     private static final String GET_LOGOUT_QUERY_SQL  = "select last_logout from " + JDBCRepository.DEF_USERS_TBL + " where sha1_user_id = sha1(?)";
 
     private boolean initialized = false;
+
+    private String[] adminUsers;
 
     @Override
     public void initRepository(String resource_uri, Map<String, String> params) throws DBInitException {
@@ -62,7 +72,19 @@ public class JDBCPresenceRepository extends JDBCRepository {
         try {
             DataRepository data_repo = getRepository();
 
-            data_repo.initPreparedStatement(GET_EXPIRED_USERS_QUERY_ID, GET_EXPIRED_USERS_QUERY_SQL);
+            String extraSql;
+
+            Map<String, Object> props = XMPPServer.getConfigurator().getProperties("message-router");
+            adminUsers = (String[]) props.get(Configurable.ADMINS_PROP_KEY);
+            if (adminUsers != null && adminUsers.length > 0) {
+                String placeholders = StringUtils.repeat("?", ",", adminUsers.length);
+                extraSql = String.format(EXPIRED_USERS_EXTRA_SQL, placeholders);
+            }
+            else {
+                extraSql = "";
+            }
+
+            data_repo.initPreparedStatement(GET_EXPIRED_USERS_QUERY_ID, String.format(GET_EXPIRED_USERS_QUERY_SQL, extraSql));
             data_repo.initPreparedStatement(GET_LOGOUT_QUERY_ID, GET_LOGOUT_QUERY_SQL);
         }
         catch (Exception e) {
@@ -80,7 +102,13 @@ public class JDBCPresenceRepository extends JDBCRepository {
                     GET_EXPIRED_USERS_QUERY_ID);
 
             synchronized (stmt) {
-                stmt.setLong(1, seconds);
+                int i = 0;
+                if (adminUsers != null && adminUsers.length > 0) {
+                    for (String admin : adminUsers)
+                        stmt.setString(++i, admin);
+                }
+                stmt.setLong(++i, seconds);
+                stmt.setLong(++i, seconds);
                 rs = stmt.executeQuery();
                 users = new ArrayList<BareJID>();
                 while (rs.next()) {
@@ -110,7 +138,12 @@ public class JDBCPresenceRepository extends JDBCRepository {
                 stmt.setString(1, user.toString());
                 rs = stmt.executeQuery();
                 if (rs.next()) {
-                    return rs.getTimestamp(1);
+                    try {
+                        return rs.getTimestamp(1);
+                    }
+                    catch (SQLException e) {
+                        return null;
+                    }
                 }
             }
 

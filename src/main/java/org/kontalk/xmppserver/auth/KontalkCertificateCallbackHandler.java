@@ -161,11 +161,14 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
 
         // retrive any old key fingerprint from storage
         String oldFingerprint = null;
+        boolean userExists;
         try {
             oldFingerprint = KontalkAuth.getUserFingerprint(session, user.getJID());
+            userExists = true;
         }
         catch (UserNotFoundException e) {
-            // user not found - that's ok
+            // user not found - that's ok, we will create it later
+            userExists = false;
         }
         catch (TigaseDBException e) {
             log.log(Level.WARNING, "no access to storage for old fingerpint", e);
@@ -173,12 +176,19 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         }
 
         if (keyring.postAuthenticate(user, oldFingerprint)) {
+            if (!userExists) {
+                try {
+                    session.getUserRepository().addUser(user.getJID());
+                }
+                catch (TigaseDBException dbe) {
+                    log.log(Level.WARNING, "unable to create user " + user.getJID(), dbe);
+                    return null;
+                }
+            }
+
             // store latest fingerprint
             try {
                 KontalkAuth.setUserFingerprint(session, user.getJID(), user.getFingerprint());
-            }
-            catch (UserNotFoundException e) {
-                log.log(Level.WARNING, "setData: user not found");
             }
             catch (TigaseDBException e) {
                 log.log(Level.WARNING, "no access to storage for storing fingerprint", e);

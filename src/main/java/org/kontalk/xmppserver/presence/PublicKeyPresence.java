@@ -20,6 +20,7 @@ package org.kontalk.xmppserver.presence;
 
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.TigaseDBException;
+import tigase.db.UserNotFoundException;
 import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.NotAuthorizedException;
@@ -55,6 +56,11 @@ public class PublicKeyPresence implements Presence.ExtendedPresenceProcessorIfc 
             }
             catch (NotAuthorizedException e) {
                 log.log(Level.WARNING, "not authorized!?", e);
+            }
+            catch (UserNotFoundException e) {
+                if (log.isLoggable(Level.FINE)) {
+                    log.log(Level.FINE, "user not found: {0}", session);
+                }
             }
             catch (TigaseDBException e) {
                 log.log(Level.SEVERE, "unable to access database", e);

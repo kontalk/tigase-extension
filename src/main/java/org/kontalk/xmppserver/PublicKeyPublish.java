@@ -21,6 +21,7 @@ package org.kontalk.xmppserver;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
+import tigase.db.UserNotFoundException;
 import tigase.server.Iq;
 import tigase.server.Packet;
 import tigase.util.Base64;
@@ -133,6 +134,9 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
             catch (PacketErrorTypeException pe) {
                 // ignored
             }
+        }
+        catch (UserNotFoundException e) {
+            log.log(Level.WARNING, "user not found: {0}", session);
         }
         catch ( TigaseDBException e ) {
             log.log( Level.WARNING, "Database problem, please contact admin:", e );

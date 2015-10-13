@@ -22,6 +22,7 @@ import org.kontalk.xmppserver.KontalkKeyring;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
+import tigase.db.UserNotFoundException;
 import tigase.server.Packet;
 import tigase.server.Presence;
 import tigase.util.Base64;
@@ -84,6 +85,11 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
             catch (NotAuthorizedException e) {
                 log.log(Level.WARNING, "not authorized!?", e);
 
+            }
+            catch (UserNotFoundException e) {
+                if (log.isLoggable(Level.FINE)) {
+                    log.log(Level.FINE, "user not found: {0}", session);
+                }
             }
             catch (TigaseDBException e) {
                 log.log(Level.SEVERE, "unable to access database", e);

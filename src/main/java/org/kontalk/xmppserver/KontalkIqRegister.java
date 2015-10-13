@@ -40,6 +40,8 @@ import tigase.auth.mechanisms.SaslEXTERNAL;
 import tigase.cert.CertificateEntry;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
+import tigase.db.UserExistsException;
+import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
@@ -303,7 +305,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                             // public key + revoked key: key rollover or upgrade from legacy
                             if (session.isAuthorized()) {
-                                String oldFingerprint = KontalkAuth.getUserFingerprint(session);
+                                String oldFingerprint;
+                                try {
+                                    oldFingerprint = KontalkAuth.getUserFingerprint(session);
+                                }
+                                catch (UserNotFoundException e) {
+                                    oldFingerprint = null;
+                                    log.log(Level.INFO, "user not found: {0}", session);
+                                }
+
                                 if (oldFingerprint != null) {
                                     // do not use public key from certificate
                                     publicKeyData = null;
@@ -500,6 +510,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
             throws TigaseDBException {
+        try {
+            session.getUserRepository().addUser(jid);
+        }
+        catch (UserExistsException e) {
+            // user already exists
+        }
         KontalkAuth.setUserFingerprint(session, jid, Hex.toHexString(fingerprint).toUpperCase());
         return packet.okResult(prepareRegisteredResponseForm(publicKey), 0);
     }

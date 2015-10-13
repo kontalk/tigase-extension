@@ -183,6 +183,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             try {
                 savePacketForOffLineUser(packet, msgRepo);
             }
+            catch (UserNotFoundException e) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, "unable to store offline packet: user not found ({0})", packet);
+                }
+            }
             catch (TigaseDBException e) {
                 log.log(Level.WARNING, "TigaseDBException at trying to save packet for off-line user." + packet, e);
             }

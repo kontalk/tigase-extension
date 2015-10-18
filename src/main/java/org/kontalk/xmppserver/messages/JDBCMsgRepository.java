@@ -54,7 +54,7 @@ public class JDBCMsgRepository implements MsgRepository {
             " `"+MSG_STANZA_COLUMN+"` mediumtext NOT NULL," +
             " `"+MSG_TIMESTAMP_COLUMN+"` datetime NOT NULL," +
             " `"+MSG_EXPIRED_COLUMN+"` datetime DEFAULT NULL," +
-            "CONSTRAINT FOREIGN KEY (`"+MSG_UID_COLUMN+"`) REFERENCES `tig_users` (`uid`)" +
+            "CONSTRAINT FOREIGN KEY (`"+MSG_UID_COLUMN+"`) REFERENCES `tig_users` (`uid`) ON DELETE CASCADE" +
             ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Offline message storage'";
 
     private static final String MSG_QUERY_LOAD_ID = "messages_load";

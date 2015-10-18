@@ -29,7 +29,7 @@ import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.FlexibleOfflineMessageRetrieval;
 import tigase.xmpp.impl.Message;
-import tigase.xmpp.impl.Presence;
+import tigase.xmpp.impl.PresenceState;
 import tigase.xmpp.impl.annotation.*;
 
 import java.text.DateFormat;
@@ -50,7 +50,7 @@ import static org.kontalk.xmppserver.messages.OfflineMessages.*;
  */
 @Id(ID)
 @Handles({
-    @Handle(path={Presence.PRESENCE_ELEMENT_NAME},xmlns=XMLNS)
+    @Handle(path={PresenceState.PRESENCE_ELEMENT_NAME},xmlns=XMLNS)
 })
 @DiscoFeatures({
     "msgoffline"

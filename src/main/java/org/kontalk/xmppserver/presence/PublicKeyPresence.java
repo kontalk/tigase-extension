@@ -25,7 +25,7 @@ import tigase.server.Packet;
 import tigase.xml.Element;
 import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.XMPPResourceConnection;
-import tigase.xmpp.impl.Presence;
+import tigase.xmpp.impl.PresenceState;
 
 import java.util.Queue;
 import java.util.logging.Level;
@@ -39,7 +39,7 @@ import static org.kontalk.xmppserver.presence.PresenceSubscribePublicKey.XMLNS;
  * A presence extender for public key fingerprint element.
  * @author Daniele Ricci
  */
-public class PublicKeyPresence implements Presence.ExtendedPresenceProcessorIfc {
+public class PublicKeyPresence implements PresenceState.ExtendedPresenceProcessorIfc {
 
     private static final Logger log = Logger.getLogger(PublicKeyPresence.class.getName());
 

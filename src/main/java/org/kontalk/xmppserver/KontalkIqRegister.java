@@ -37,7 +37,6 @@ import org.kontalk.xmppserver.registration.VerificationRepository;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
-import tigase.cert.CertificateEntry;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserExistsException;
@@ -381,18 +380,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     }
 
     private byte[] getPublicKey(XMPPResourceConnection session) throws PGPException, IOException {
-        CertificateEntry certEntry = (CertificateEntry) session.getSessionData(SaslEXTERNAL.SESSION_AUTH_PEER_CERT);
-        if (certEntry != null) {
-            Certificate[] chain = certEntry.getCertChain();
-            if (chain != null && chain.length > 0) {
-                // take the last certificate in the chain
-                // it shouldn't matter since the peer certificate should be just one
-                Certificate peerCert = chain[chain.length - 1];
-
-                if (peerCert instanceof X509Certificate) {
-                    return X509Utils.getMatchingPublicKey((X509Certificate) peerCert);
-                }
-            }
+        Certificate peerCert = (Certificate) session.getSessionData(SaslEXTERNAL.PEER_CERTIFICATE_KEY);
+        if (peerCert instanceof X509Certificate) {
+            return X509Utils.getMatchingPublicKey((X509Certificate) peerCert);
         }
 
         throw new PGPException("client certificate not found");

@@ -39,9 +39,9 @@ import org.kontalk.xmppserver.pgp.PGPUtils;
 
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.auth.DomainAware;
+import tigase.auth.PluginSettingsAware;
 import tigase.auth.callbacks.ValidateCertificateData;
 import tigase.auth.impl.CertBasedCallbackHandler;
-import tigase.auth.mechanisms.PluginSettingsAware;
 import tigase.auth.mechanisms.SaslEXTERNAL;
 import tigase.cert.CertificateEntry;
 import tigase.cert.CertificateUtil;
@@ -82,30 +82,23 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
                 if (callbacks[i] instanceof ValidateCertificateData) {
                     ValidateCertificateData authCallback = ((ValidateCertificateData) callbacks[i]);
 
-                    CertificateEntry certEntry = (CertificateEntry) session.getSessionData(SaslEXTERNAL.SESSION_AUTH_PEER_CERT);
-                    if (certEntry != null) {
-                        Certificate[] chain = certEntry.getCertChain();
-                        if (chain != null && chain.length > 0) {
-                            // take the last certificate in the chain
-                            // it shouldn't matter since the peer certificate should be just one
-                            Certificate peerCert = chain[chain.length - 1];
+                    Certificate peerCert = (Certificate) session.getSessionData(SaslEXTERNAL.PEER_CERTIFICATE_KEY);
+                    if (peerCert != null) {
+                        KontalkUser user = null;
+                        try {
+                            user = verifyCertificate(peerCert);
+                        }
+                        catch (PGPException e) {
+                            log.log(Level.WARNING, "Error verifying certificate", e);
+                        }
+                        catch (CertificateEncodingException e) {
+                            log.log(Level.WARNING, "Error parsing certificate", e);
+                        }
 
-                            KontalkUser user = null;
-                            try {
-                                user = verifyCertificate(peerCert);
-                            }
-                            catch (PGPException e) {
-                                log.log(Level.WARNING, "Error verifying certificate", e);
-                            }
-                            catch (CertificateEncodingException e) {
-                                log.log(Level.WARNING, "Error parsing certificate", e);
-                            }
-
-                            if (user != null) {
-                                authCallback.setAuthorized(true);
-                                authCallback.setAuthorizedID(user.getJID().toString());
-                                return;
-                            }
+                        if (user != null) {
+                            authCallback.setAuthorized(true);
+                            authCallback.setAuthorizedID(user.getJID().toString());
+                            return;
                         }
                     }
                 }

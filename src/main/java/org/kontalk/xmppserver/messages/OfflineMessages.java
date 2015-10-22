@@ -373,11 +373,6 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             pac.processedBy(ID);
 
             return true;
-        } else {
-            if ( log.isLoggable( Level.FINEST ) ){
-                log.log( Level.FINEST, "Packet for offline user not suitable for storing: {0}",
-                        pac );
-            }
         }
 
         return false;

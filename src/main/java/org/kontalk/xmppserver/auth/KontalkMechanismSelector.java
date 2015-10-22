@@ -31,10 +31,14 @@ import javax.security.sasl.SaslServerFactory;
 public class KontalkMechanismSelector extends DefaultMechanismSelector {
 
     protected boolean match(SaslServerFactory factory, String mechanismName, XMPPResourceConnection session) {
-        return super.match(factory, mechanismName, session) ||
-            (factory instanceof KontalkSaslServerFactory &&
-                    (mechanismName.equals(SaslKontalkToken.MECHANISM) ||
-                    mechanismName.equals(SaslKontalkPlainToken.MECHANISM)));
+        if (session.isTlsRequired() && !session.isEncrypted())
+            return false;
+        if (factory instanceof KontalkSaslServerFactory) {
+            return (mechanismName.equals("EXTERNAL") ||
+                    mechanismName.equals(SaslKontalkToken.MECHANISM) ||
+                    mechanismName.equals(SaslKontalkPlainToken.MECHANISM));
+        }
+        return false;
     }
 
 }

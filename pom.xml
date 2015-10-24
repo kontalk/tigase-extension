@@ -3,7 +3,7 @@
   <groupId>org.kontalk</groupId>
   <artifactId>tigase-extension</artifactId>
   <name>Kontalk Tigase extension</name>
-  <version>1.0-alpha3</version>
+  <version>1.0-beta1</version>
   <build>
     <plugins>
       <plugin>

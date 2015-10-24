@@ -123,5 +123,11 @@
       <scope>system</scope>
       <systemPath>${basedir}/lib/gcm-server.jar</systemPath>
     </dependency>
+    <!-- required by gcm-server -->
+    <dependency>
+      <groupId>com.googlecode.json-simple</groupId>
+      <artifactId>json-simple</artifactId>
+      <version>1.1.1</version>
+    </dependency>
   </dependencies>
 </project>

@@ -5,7 +5,6 @@
   <name>Kontalk Tigase extension</name>
   <version>1.0-alpha3</version>
   <build>
-    <sourceDirectory>src</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

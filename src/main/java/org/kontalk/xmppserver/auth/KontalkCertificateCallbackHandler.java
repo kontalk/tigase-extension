@@ -209,8 +209,8 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         this.settings = settings;
     }
 
-    private KontalkKeyring getKeyring() {
-        return KontalkKeyring.getInstance(domain, (String) settings.get("fingerprint"));
+    private KontalkKeyring getKeyring() throws IOException, PGPException {
+        return KontalkKeyring.getInstance(domain);
     }
 
     // TEST

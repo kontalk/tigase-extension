@@ -101,7 +101,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
 
-    private String serverFingerprint;
     private PhoneNumberVerificationProvider provider;
     private PhoneNumberVerificationProvider fallbackProvider;
 
@@ -120,7 +119,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         requests = new HashMap<>();
-        serverFingerprint = (String) settings.get("fingerprint");
 
         // registration provider
         String providerClassName = (String) settings.get("provider");
@@ -590,8 +588,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return keyring.signKey(publicKeyData);
     }
 
-    private KontalkKeyring getKeyring(XMPPResourceConnection session) {
-        return KontalkAuth.getKeyring(session, serverFingerprint);
+    private KontalkKeyring getKeyring(XMPPResourceConnection session) throws IOException, PGPException {
+        return KontalkAuth.getKeyring(session);
     }
 
     @Override

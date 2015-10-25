@@ -18,19 +18,20 @@
 
 package org.kontalk.xmppserver.pgp;
 
-import java.io.IOException;
-import java.security.PublicKey;
-import java.util.Iterator;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPObjectFactory;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter;
 import org.kontalk.xmppserver.Security;
+import tigase.xmpp.BareJID;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.PublicKey;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * PGP related utilities.
@@ -70,7 +71,14 @@ public class PGPUtils {
     }
 
     public static PGPPublicKeyRing readPublicKeyring(byte[] publicKeyring) throws IOException, PGPException {
-        PGPObjectFactory reader = new PGPObjectFactory(publicKeyring, new BcKeyFingerprintCalculator());
+        return readPublicKeyring(new PGPObjectFactory(publicKeyring, new BcKeyFingerprintCalculator()));
+    }
+
+    public static PGPPublicKeyRing readPublicKeyring(InputStream publicKeyring) throws IOException, PGPException {
+        return readPublicKeyring(new PGPObjectFactory(publicKeyring, new BcKeyFingerprintCalculator()));
+    }
+
+    private static PGPPublicKeyRing readPublicKeyring(PGPObjectFactory reader) throws IOException, PGPException {
         Object o = reader.nextObject();
         while (o != null) {
             if (o instanceof PGPPublicKeyRing)
@@ -80,6 +88,31 @@ public class PGPUtils {
         }
 
         throw new PGPException("invalid keyring data.");
+    }
+
+    public static PGPSecretKeyRing readSecretKeyring(byte[] secretKeyring) throws IOException, PGPException {
+        return readSecretKeyring(new PGPObjectFactory(secretKeyring, new BcKeyFingerprintCalculator()));
+    }
+
+    public static PGPSecretKeyRing readSecretKeyring(InputStream publicKeyring) throws IOException, PGPException {
+        return readSecretKeyring(new PGPObjectFactory(publicKeyring, new BcKeyFingerprintCalculator()));
+    }
+
+    private static PGPSecretKeyRing readSecretKeyring(PGPObjectFactory reader) throws IOException, PGPException {
+        Object o = reader.nextObject();
+        while (o != null) {
+            if (o instanceof PGPSecretKeyRing)
+                return (PGPSecretKeyRing) o;
+
+            o = reader.nextObject();
+        }
+
+        throw new PGPException("invalid keyring data.");
+    }
+
+    public static boolean isExpired(PGPPublicKey key) {
+        // TODO
+        return false;
     }
 
     /** Converts a PGP public key into a public key. */
@@ -96,6 +129,55 @@ public class PGPUtils {
     private static void ensureKeyConverter() {
         if (sKeyConverter == null)
             sKeyConverter = new JcaPGPKeyConverter().setProvider(org.kontalk.xmppserver.Security.PROVIDER);
+    }
+
+    public static boolean findValidKeySignature(PGPPublicKey key, String uid, PGPPublicKey signerKey) throws PGPException {
+        PGPSignature valid = null;
+        long keyId = signerKey.getKeyID();
+
+        @SuppressWarnings("unchecked")
+        Iterator<PGPSignature> sigs = key.getSignaturesForID(uid);
+        while (sigs != null && sigs.hasNext()) {
+            PGPSignature sig = sigs.next();
+            if (sig.getKeyID() == keyId && verifyKeySignature(key, sig, signerKey, uid)) {
+                if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION) {
+                    if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
+                        valid = sig;
+                }
+                // TODO else if (sig.getSignatureType() == PGPSignature.CERTIFICATION_REVOCATION) ...
+            }
+        }
+
+        return valid != null;
+    }
+
+    private static boolean verifyKeySignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey, String uid) throws PGPException {
+        sig.init(new BcPGPContentVerifierBuilderProvider(), signerKey);
+        return sig.verifyCertification(uid, publicKey);
+    }
+
+    public static boolean isKeyNewer(PGPPublicKeyRing oldKey, PGPPublicKeyRing newKey) {
+        return getMasterKey(oldKey).getCreationTime()
+                .before(getMasterKey(newKey).getCreationTime());
+    }
+
+    public static PGPUserID findUserID(PGPPublicKey key, String domain) {
+        @SuppressWarnings("unchecked")
+        Iterator<String> iter = key.getUserIDs();
+        while (iter.hasNext()) {
+            String _uid = iter.next();
+            PGPUserID uid = parseUserID(_uid);
+            if (uid != null) {
+                String email = uid.getEmail();
+                if (email != null) {
+                    BareJID jid = BareJID.bareJIDInstanceNS(email);
+                    if (domain.equalsIgnoreCase(jid.getDomain())) {
+                        return uid;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     public static PGPUserID parseUserID(PGPPublicKey key) {
@@ -127,6 +209,30 @@ public class PGPUtils {
 
         // no match found
         return null;
+    }
+
+    private static String bytesToHex(byte[] data) {
+        StringBuffer buf = new StringBuffer();
+        for (int i = 0; i < data.length; i++) {
+            int halfbyte = (data[i] >>> 4) & 0x0F;
+            int two_halfs = 0;
+            do {
+                if ((0 <= halfbyte) && (halfbyte <= 9))
+                    buf.append((char) ('0' + halfbyte));
+                else
+                    buf.append((char) ('a' + (halfbyte - 10)));
+                halfbyte = data[i] & 0x0F;
+            } while(two_halfs++ < 1);
+        }
+        return buf.toString();
+    }
+
+    public static String getFingerprint(PGPPublicKeyRing publicKey) {
+        return bytesToHex(getMasterKey(publicKey).getFingerprint()).toUpperCase(Locale.US);
+    }
+
+    public static String getFingerprint(PGPPublicKey publicKey) {
+        return bytesToHex(publicKey.getFingerprint()).toUpperCase(Locale.US);
     }
 
 }

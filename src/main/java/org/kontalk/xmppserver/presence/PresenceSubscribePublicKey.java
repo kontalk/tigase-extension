@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.presence;
 
+import org.bouncycastle.openpgp.PGPException;
 import org.kontalk.xmppserver.KontalkKeyring;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
@@ -123,7 +124,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
                     return result;
                 }
             }
-            catch (IOException e) {
+            catch (IOException | PGPException e) {
                 log.log(Level.WARNING, "unable to load key for user " + user, e);
             }
         }

@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.auth;
 
+import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.KontalkKeyring;
 import tigase.db.TigaseDBException;
@@ -26,6 +27,7 @@ import tigase.xmpp.JID;
 import tigase.xmpp.NotAuthorizedException;
 import tigase.xmpp.XMPPResourceConnection;
 
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -54,8 +56,8 @@ public class KontalkAuth {
         session.getUserRepository().setData(jid, NODE_AUTH, KEY_FINGERPRINT, fingerprint);
     }
 
-    public static KontalkKeyring getKeyring(XMPPResourceConnection session, String serverFingerprint) {
-        return KontalkKeyring.getInstance(session.getDomainAsJID().toString(), serverFingerprint);
+    public static KontalkKeyring getKeyring(XMPPResourceConnection session) throws IOException, PGPException {
+        return KontalkKeyring.getInstance(session.getDomainAsJID().toString());
     }
 
     public static String toUserId(String phone) {

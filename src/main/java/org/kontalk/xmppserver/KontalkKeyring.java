@@ -18,21 +18,18 @@
 
 package org.kontalk.xmppserver;
 
-import com.freiheit.gnupg.*;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.util.encoders.Hex;
+import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.bouncycastle.openpgp.PGPSecretKeyRing;
+import org.kontalk.xmppserver.pgp.PGPLocalKeyring;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
-import org.kontalk.xmppserver.util.LRUCache;
 import tigase.xmpp.BareJID;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 
@@ -41,72 +38,22 @@ import java.util.Map;
  * @author Daniele Ricci
  */
 public class KontalkKeyring {
-
-    private static final String PARTITION_FILENAME_FORMAT = ".gnupg-%d";
-    private static final int MAX_PARTITIONS = 16;
-
     private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
 
     private final String domain;
-    private final String fingerprint;
-    private GnuPGContext[] contexts;
+    private final PGPLocalKeyring keyring;
 
-    private final LRUCache<String,byte[]> keyCache;
+    private final PGPSecretKeyRing secretPrivateKey;
+    private final PGPPublicKeyRing secretPublicKey;
+    private final PGPPublicKey secretMasterKey;
 
-    private final GnuPGContext globalContext;
-    private final GnuPGKey secretKey;
-
-    /** Use {@link #getInstance(String, String)} instead. */
-    public KontalkKeyring(String domain, String fingerprint, String homeDir, int partitions) {
+    /** Use {@link #getInstance(String)} instead. */
+    public KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
         this.domain = domain;
-        this.fingerprint = fingerprint;
-
-        if (homeDir != null && partitions > 0) {
-            initPartitions(homeDir, partitions);
-        }
-
-        // use another keyring for the secret key
-        globalContext = new GnuPGContext();
-        globalContext.setArmor(false);
-        if (fingerprint != null) {
-            this.secretKey = globalContext.getKeyByFingerprint(fingerprint);
-        }
-        else {
-            // not using a secret key (WHAT?)
-            this.secretKey = null;
-        }
-
-        keyCache = new LRUCache<>(100, 2000);
-    }
-
-    private void initPartitions(String homeDir, int partitions) {
-        if ((MAX_PARTITIONS % partitions) > 0)
-            throw new IllegalArgumentException("partitions can only split the keyspace evenly by 16");
-
-        contexts = new GnuPGContext[partitions];
-        for (int i = 0; i < partitions; i++) {
-            contexts[i] = new GnuPGContext();
-            contexts[i].setEngineInfo(contexts[i].getProtocol(),
-                    contexts[i].getFilename(),
-                    homeDir + File.separator + makePartitionName(i));
-            contexts[i].setArmor(false);
-        }
-    }
-
-    private String makePartitionName(int partition) {
-        return String.format(PARTITION_FILENAME_FORMAT, partition);
-    }
-
-    /** Returns the context to use for the given fingerprint according to keyspace partitioning. */
-    private GnuPGContext getContext(String fingerprint) {
-        return contexts != null ? contexts[getPartition(fingerprint)] : globalContext;
-    }
-
-    int getPartition(String fingerprint) {
-        // this can't fail otherwise it's a bug
-        // here we use 16 to indicate hexadecimal base
-        int digit = Integer.parseInt(fingerprint.substring(0, 1), 16);
-        return (int) Math.floor(digit / (MAX_PARTITIONS/contexts.length));
+        this.keyring = new PGPLocalKeyring(keyring);
+        this.secretPrivateKey = PGPUtils.readSecretKeyring(new FileInputStream(secretPrivateKeyFile));
+        this.secretPublicKey = PGPUtils.readPublicKeyring(new FileInputStream(secretPublicKeyFile));
+        this.secretMasterKey = PGPUtils.getMasterKey(this.secretPublicKey);
     }
 
     /**
@@ -115,24 +62,9 @@ public class KontalkKeyring {
      * @return a user instance with JID and public key fingerprint.
      */
     public KontalkUser authenticate(byte[] keyData) throws IOException, PGPException {
-        KontalkUser user = checkCache(keyData);
-        if (user == null) {
-            String fpr = importKey(keyData);
-
-            GnuPGKey key;
-            final GnuPGContext ctx = getContext(fpr);
-            synchronized (ctx) {
-                key = ctx.getKeyByFingerprint(fpr);
-            }
-
-            BareJID jid = validate(key);
-
-            if (jid != null) {
-                putCache(key.getFingerprint(), keyData);
-                return new KontalkUser(jid, key.getFingerprint());
-            }
-        }
-        return user;
+        PGPPublicKeyRing key = keyring.importKey(keyData);
+        BareJID jid = validate(key);
+        return jid != null ? new KontalkUser(jid, PGPUtils.getFingerprint(key)) : null;
     }
 
     /**
@@ -142,27 +74,18 @@ public class KontalkKeyring {
      * @param oldFingerprint old key fingerprint, null if none present
      * @return true if the new key can be accepted.
      */
-    public boolean postAuthenticate(KontalkUser user, String oldFingerprint) {
+    public boolean postAuthenticate(KontalkUser user, String oldFingerprint) throws IOException, PGPException {
         if (oldFingerprint == null || oldFingerprint.equalsIgnoreCase(user.getFingerprint())) {
             // no old fingerprint or same fingerprint -- access granted
             return true;
         }
 
-        // retrive old user key
-        GnuPGKey oldKey;
-        GnuPGContext ctx = getContext(oldFingerprint);
-        synchronized (ctx) {
-            oldKey = ctx.getKeyByFingerprint(oldFingerprint);
-        }
+        PGPPublicKeyRing oldKey = keyring.getKey(oldFingerprint);
         if (oldKey != null && validate(oldKey) != null) {
             // old key is still valid, check for timestamp
 
-            GnuPGKey newKey;
-            ctx = getContext(user.getFingerprint());
-            synchronized (ctx) {
-                newKey = ctx.getKeyByFingerprint(user.getFingerprint());
-            }
-            if (newKey != null && newKey.getTimestamp().getTime() >= oldKey.getTimestamp().getTime()) {
+            PGPPublicKeyRing newKey = keyring.getKey(user.getFingerprint());
+            if (newKey != null && PGPUtils.isKeyNewer(oldKey, newKey)) {
                 return true;
             }
         }
@@ -175,6 +98,7 @@ public class KontalkKeyring {
      * key is revoked correctly.
      */
     public boolean revoked(byte[] keyData, String fingerprint) throws IOException, PGPException {
+        /*
         String fpr = importKey(keyData);
         GnuPGKey key;
         GnuPGContext ctx = getContext(fpr);
@@ -182,102 +106,34 @@ public class KontalkKeyring {
             key = ctx.getKeyByFingerprint(fpr);
         }
         return key.isRevoked() && key.getFingerprint().equalsIgnoreCase(fingerprint);
-    }
-
-    private KontalkUser checkCache(byte[] keyData) throws IOException, PGPException {
-        PGPPublicKey pk = PGPUtils.getMasterKey(keyData);
-        String fingerprint = Hex.toHexString(pk.getFingerprint()).toUpperCase();
-
-        byte[] cacheHit = keyCache.get(fingerprint);
-        if (cacheHit != null && Arrays.equals(keyData, cacheHit)) {
-            // we got a cache hit, rebuild user data
-            String uidString = (String) pk.getUserIDs().next();
-            if (uidString != null) {
-                PGPUserID uid = PGPUserID.parse(uidString);
-                if (uid != null) {
-                    BareJID jid = BareJID.bareJIDInstanceNS(uid.getEmail());
-                    return new KontalkUser(jid, fingerprint);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private void putCache(String fingerprint, byte[] keyData) {
-        keyCache.put(fingerprint.toUpperCase(), keyData);
+        */
+        return false;
     }
 
     /** Validates the given key for expiration, revocation and signature by the server. */
-    private BareJID validate(GnuPGKey key) {
-        if (key.isRevoked() || key.isExpired() || key.isInvalid())
+    private BareJID validate(PGPPublicKeyRing key) throws PGPException {
+        PGPPublicKey masterKey = PGPUtils.getMasterKey(key);
+        if (masterKey == null || masterKey.isRevoked() || PGPUtils.isExpired(masterKey))
             return null;
 
-        String email = key.getEmail();
-        BareJID jid = BareJID.bareJIDInstanceNS(email);
-        if (jid.getDomain().equalsIgnoreCase(domain)) {
-            Iterator<GnuPGSignature> signatures = key.getSignatures();
-            while (signatures != null && signatures.hasNext()) {
-                GnuPGSignature sig = signatures.next();
-                if (sig.isRevoked() || sig.isExpired() || sig.isInvalid())
-                    return null;
-
-                GnuPGKey skey;
-                synchronized (globalContext) {
-                    try {
-                        skey = globalContext.getKeyByFingerprint(sig.getKeyID());
-                    }
-                    catch (GnuPGException e) {
-                        // ignoring - probably due to self signature
-                        skey = null;
-                    }
-                }
-                if (skey != null && skey.getFingerprint().equalsIgnoreCase(fingerprint))
-                    return jid;
+        PGPUserID uid = PGPUtils.findUserID(masterKey, domain);
+        if (uid != null) {
+            if (PGPUtils.findValidKeySignature(masterKey, uid.toString(), secretMasterKey)) {
+                return BareJID.bareJIDInstanceNS(uid.getEmail());
             }
-
         }
 
         return null;
     }
 
-    private byte[] exportKeyGlobal(String fingerprint) throws IOException {
-        return exportKeyInternal(fingerprint, globalContext);
-    }
-
-    public byte[] exportKey(String fingerprint) throws IOException {
-        GnuPGContext ctx = getContext(fingerprint);
-        return exportKeyInternal(fingerprint, ctx);
-    }
-
-    public byte[] exportKeyInternal(String fingerprint, GnuPGContext ctx) throws IOException {
-        GnuPGData data;
-        synchronized (ctx) {
-            data = ctx.createDataObject();
-            ctx.export(fingerprint, 0, data);
-        }
-
-        ByteArrayOutputStream baos = null;
-
-        try {
-            synchronized (ctx) {
-                baos = new ByteArrayOutputStream(data.size());
-                data.write(baos);
-            }
-            return baos.toByteArray();
-        }
-        finally {
-            try {
-                if (baos != null)
-                    baos.close();
-            }
-            catch (IOException ignored) {
-            }
-        }
+    public byte[] exportKey(String fingerprint) throws IOException, PGPException {
+        PGPPublicKeyRing pk = keyring.getKey(fingerprint);
+        return (pk != null) ? pk.getEncoded() : null;
     }
 
     // TODO this needs to be implemented in Java
     public byte[] signKey(byte[] keyData) throws IOException, PGPException {
+        /*
         String fpr = importKeyGlobal(keyData);
 
         if (fpr != null) {
@@ -321,28 +177,9 @@ public class KontalkKeyring {
         }
 
         throw new PGPException("Invalid key data");
-    }
-
-    String importKeyGlobal(byte[] keyData) {
-        return importKeyInternal(keyData, globalContext);
-    }
-
-    String importKey(byte[] keyData) throws IOException, PGPException {
-        PGPPublicKey pk = PGPUtils.getMasterKey(keyData);
-        String fingerprint = Hex.toHexString(pk.getFingerprint());
-        GnuPGContext ctx = getContext(fingerprint);
-
-        return importKeyInternal(keyData, ctx);
-    }
-
-    private String importKeyInternal(byte[] keyData, GnuPGContext ctx) {
-        String fpr;
-        synchronized (ctx) {
-            GnuPGData data = ctx.createDataObject(keyData);
-            fpr = ctx.importKey(data);
-            data.destroy();
-        }
-        return fpr;
+        */
+        // TODO
+        return null;
     }
 
     /**
@@ -352,6 +189,7 @@ public class KontalkKeyring {
      * @return a Kontalk user instance if successful.
      */
     public KontalkUser verifyLegacyToken(byte[] token, String fingerprint) {
+        /*
         synchronized (globalContext) {
             GnuPGData signed = null;
             GnuPGData unused = null;
@@ -383,33 +221,32 @@ public class KontalkKeyring {
         }
 
         return null;
+        */
+        // TODO
+        return null;
     }
 
-    private static String getConfiguredHomeDir() {
-        return System.getProperty("gnupg.home");
+    private static String getConfiguredKeyringPath() {
+        return System.getProperty("pgp.keyring");
     }
 
-    private static int getConfiguredPartitions() {
-        try {
-            return Integer.parseInt(System.getProperty("gnupg.partitions"));
-        }
-        catch (Exception e) {
-            return 1;
-        }
+    private static String getConfiguredSecretPublicKeyPath() {
+        return System.getProperty("pgp.secret.public");
+    }
+
+    private static String getConfiguredSecretPrivateKeyPath() {
+        return System.getProperty("pgp.secret.private");
     }
 
     /** Initializes the keyring. */
-    public static KontalkKeyring getInstance(String domain, String fingerprint) {
+    public static KontalkKeyring getInstance(String domain) throws IOException, PGPException {
         KontalkKeyring instance = instances.get(domain);
         if (instances.get(domain) == null) {
-            instance = new KontalkKeyring(domain, fingerprint, getConfiguredHomeDir(), getConfiguredPartitions());
+            instance = new KontalkKeyring(domain, getConfiguredSecretPrivateKeyPath(),
+                    getConfiguredSecretPublicKeyPath(), getConfiguredKeyringPath());
             instances.put(domain, instance);
         }
         return instance;
     }
 
-    /** Returns the singleton keyring instance. Need to call {@link #getInstance(String, String)} first! */
-    public static KontalkKeyring getInstance(String domain) {
-        return instances.get(domain);
-    }
 }

@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver;
 
+import org.bouncycastle.openpgp.PGPException;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
@@ -102,7 +103,7 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
                                 pubkey.setCData(Base64.encode(publicKeyData));
                             }
                         }
-                        catch (IOException e) {
+                        catch (IOException | PGPException e) {
                             log.log(Level.WARNING, "Unable to export key for user {0} (fingerprint: {1})",
                                     new Object[]{to, fingerprint});
                         }

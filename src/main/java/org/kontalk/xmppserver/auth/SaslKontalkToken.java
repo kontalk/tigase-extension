@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver.auth;
 
 import com.freiheit.gnupg.GnuPGException;
+import org.bouncycastle.openpgp.PGPException;
 import org.kontalk.xmppserver.KontalkKeyring;
 import org.kontalk.xmppserver.KontalkUser;
 import tigase.auth.XmppSaslException;
@@ -26,6 +27,7 @@ import tigase.auth.mechanisms.AbstractSasl;
 
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.sasl.SaslException;
+import java.io.IOException;
 import java.util.Map;
 
 
@@ -38,19 +40,23 @@ public class SaslKontalkToken extends AbstractSasl {
     public static final String MECHANISM = "KONTALK-TOKEN";
 
     private final String legacyServerFingerprint;
-    private final String serverFingerprint;
     private final String serverName;
 
     SaslKontalkToken(Map<? super String, ?> props, CallbackHandler callbackHandler) {
         super(props, callbackHandler);
         legacyServerFingerprint = (String) props.get("legacy-fingerprint");
-        serverFingerprint = (String) props.get("fingerprint");
         serverName = (String) props.get("host");
     }
 
     @Override
     public byte[] evaluateResponse(byte[] response) throws SaslException {
-        KontalkKeyring keyring = getKeyring();
+        KontalkKeyring keyring;
+        try {
+            keyring = getKeyring();
+        }
+        catch (IOException | PGPException e) {
+            throw new XmppSaslException(XmppSaslException.SaslError.temporary_auth_failure);
+        }
 
         KontalkUser user;
         try {
@@ -92,8 +98,8 @@ public class SaslKontalkToken extends AbstractSasl {
         return null;
     }
 
-    private KontalkKeyring getKeyring() {
-        return KontalkKeyring.getInstance(serverName, serverFingerprint);
+    private KontalkKeyring getKeyring() throws IOException, PGPException {
+        return KontalkKeyring.getInstance(serverName);
     }
 
 }

@@ -80,7 +80,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "User disconnected, activating session {0}", session);
             }
-            flush(session, results, false);
+            flush(session, results, false, true);
         }
         else {
             if (log.isLoggable(Level.FINEST)) {
@@ -96,10 +96,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** Deactivates client state indication (that is, client going to active state). */
     private void setActive(XMPPResourceConnection session, Queue<Packet> results) {
-        flush(session, results, true);
+        flush(session, results, true, false);
     }
 
-    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence) {
+    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence, boolean stopped) {
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
             return;
@@ -122,16 +122,32 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             // send all pending messages
             List<Message> msgs = queue.getMessages();
             if (msgs != null && msgs.size() > 0) {
-                try {
-                    JID connId = session.getConnectionId();
+                if (stopped) {
+                    // we are stopping, redeliver all stanzas
                     for (Message p : msgs) {
-                        p.setPacketTo(connId);
+                        // we are redelivering, no connection id
+                        p.setPacketTo(null);
                         results.offer(p);
                     }
                 }
-                catch (NoConnectionIdException e) {
-                    log.log(Level.WARNING, "connection has vanished, sending messages to JID", e);
-                    results.addAll(msgs);
+                else {
+                    try {
+                        JID connId = session.getConnectionId();
+                        for (Message p : msgs) {
+                            // create a copy so we don't alter the original stanza
+                            Packet p2 = p.copyElementOnly();
+                            p2.setPacketFrom(p.getPacketFrom());
+                            p2.setPacketTo(connId);
+                            results.offer(p2);
+                        }
+                    }
+                    catch (NoConnectionIdException e) {
+                        log.log(Level.WARNING, "connection has vanished, sending messages to JID", e);
+                        for (Message p : msgs) {
+                            p.setPacketTo(null);
+                            results.offer(p);
+                        }
+                    }
                 }
             }
             // destroy and remove stanza store

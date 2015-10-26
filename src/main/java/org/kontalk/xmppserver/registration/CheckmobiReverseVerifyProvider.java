@@ -26,6 +26,7 @@ import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
@@ -35,6 +36,8 @@ import java.util.logging.Logger;
  */
 public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvider {
     private static Logger log = Logger.getLogger(CheckmobiReverseVerifyProvider.class.getName());
+
+    private static final int PROOF_LENGTH = 4;
 
     private static final String ACK_INSTRUCTIONS = "A missed call will be placed to the phone number you provided.";
 
@@ -55,11 +58,15 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
         CheckmobiValidationClient client = new CheckmobiValidationClient(apiKey);
 
-        log.fine("Requesting CheckMobi verification for " + phoneNumber);
+        if (log.isLoggable(Level.FINEST)) {
+            log.finest("Requesting CheckMobi verification for " + phoneNumber);
+        }
         RequestResult result = client.request(phoneNumber);
         if (result != null) {
             if (result.getStatus() == RequestResult.STATUS_SUCCESS) {
-                log.fine("Requested to CheckMobi: " + result.getId());
+                if (log.isLoggable(Level.FINEST)) {
+                    log.finest("Requested to CheckMobi: " + result.getId());
+                }
                 return new CheckmobiRequest(result.getId());
             }
             else {
@@ -75,9 +82,13 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
         CheckmobiValidationClient client = new CheckmobiValidationClient(apiKey);
 
-        log.fine("Confirming to CheckMobi: " + request + ", proof: " + proof);
+        // take the last N characters (dummy proof :)
+        String finalProof = proof.substring(Math.max(0, proof.length() - PROOF_LENGTH));
+        if (log.isLoggable(Level.FINEST)) {
+            log.finest("Confirming to CheckMobi: " + request + ", proof: " + finalProof);
+        }
         CheckmobiRequest myRequest = (CheckmobiRequest) request;
-        VerifyResult result = client.verify(myRequest.getId(), proof);
+        VerifyResult result = client.verify(myRequest.getId(), finalProof);
         if (result != null) {
             if (result.getStatus() == VerifyResult.STATUS_SUCCESS) {
                 return result.isValidated();

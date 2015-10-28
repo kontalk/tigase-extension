@@ -171,7 +171,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             Packet res = it.next();
             try {
                 synchronized (queue) {
-                    if (res.getStanzaTo() != null && session.getJID().equals(res.getStanzaTo())) {
+                    if (res.getStanzaTo() != null && res.getStanzaTo().equals(session.getConnectionId())) {
                         if (log.isLoggable(Level.FINEST)) {
                             log.log(Level.FINEST, "Checking packet {0} for session {1}",
                                     new Object[]{packet, session});
@@ -182,7 +182,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
                     }
                 }
             }
-            catch (NotAuthorizedException ignored) {
+            catch (NoConnectionIdException e) {
                 // ignore
             }
         }

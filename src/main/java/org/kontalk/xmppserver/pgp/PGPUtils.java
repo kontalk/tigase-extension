@@ -28,8 +28,7 @@ import tigase.xmpp.BareJID;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.PublicKey;
-import java.util.Iterator;
-import java.util.Locale;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -110,9 +109,18 @@ public class PGPUtils {
         throw new PGPException("invalid keyring data.");
     }
 
+    public static boolean isRevoked(PGPPublicKey key) throws PGPException {
+        return key.isRevoked() && findValidRevocationSignature(key);
+    }
+
     public static boolean isExpired(PGPPublicKey key) {
-        // TODO
-        return false;
+        // TODO check creation time signature
+        Date creationDate = key.getCreationTime();
+        Date expiryDate = key.getValidSeconds() > 0
+                ? new Date(creationDate.getTime() + key.getValidSeconds() * 1000) : null;
+
+        Date now = new Date();
+        return creationDate.after(now) || (expiryDate != null && expiryDate.before(now));
     }
 
     /** Converts a PGP public key into a public key. */
@@ -131,6 +139,23 @@ public class PGPUtils {
             sKeyConverter = new JcaPGPKeyConverter().setProvider(org.kontalk.xmppserver.Security.PROVIDER);
     }
 
+    public static boolean findValidRevocationSignature(PGPPublicKey key) throws PGPException {
+        PGPSignature valid = null;
+
+        @SuppressWarnings("unchecked")
+        Iterator<PGPSignature> sigs = key.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+        while (sigs != null && sigs.hasNext()) {
+            PGPSignature sig = sigs.next();
+            if (sig.getKeyID() == key.getKeyID() && verifyKeySignature(key, sig, key)) {
+                if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
+                    valid = sig;
+                // TODO else if (sig.getSignatureType() == PGPSignature.CERTIFICATION_REVOCATION) ...
+            }
+        }
+
+        return valid != null;
+    }
+
     public static boolean findValidKeySignature(PGPPublicKey key, String uid, PGPPublicKey signerKey) throws PGPException {
         PGPSignature valid = null;
         long keyId = signerKey.getKeyID();
@@ -139,7 +164,7 @@ public class PGPUtils {
         Iterator<PGPSignature> sigs = key.getSignaturesForID(uid);
         while (sigs != null && sigs.hasNext()) {
             PGPSignature sig = sigs.next();
-            if (sig.getKeyID() == keyId && verifyKeySignature(key, sig, signerKey, uid)) {
+            if (sig.getKeyID() == keyId && verifyUidSignature(key, sig, signerKey, uid)) {
                 if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION) {
                     if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
                         valid = sig;
@@ -151,7 +176,12 @@ public class PGPUtils {
         return valid != null;
     }
 
-    private static boolean verifyKeySignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey, String uid) throws PGPException {
+    private static boolean verifyKeySignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey) throws PGPException {
+        sig.init(new BcPGPContentVerifierBuilderProvider(), signerKey);
+        return sig.verifyCertification(publicKey, publicKey);
+    }
+
+    private static boolean verifyUidSignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey, String uid) throws PGPException {
         sig.init(new BcPGPContentVerifierBuilderProvider(), signerKey);
         return sig.verifyCertification(uid, publicKey);
     }
@@ -233,6 +263,139 @@ public class PGPUtils {
 
     public static String getFingerprint(PGPPublicKey publicKey) {
         return bytesToHex(publicKey.getFingerprint()).toUpperCase(Locale.US);
+    }
+
+    public static boolean equals(PGPPublicKeyRing k1, PGPPublicKeyRing k2) {
+        PGPPublicKey m1 = getMasterKey(k1);
+        PGPPublicKey m2 = getMasterKey(k2);
+        return m1 != null && m2 != null && equals(m1, m2);
+    }
+
+    public static boolean equals(PGPPublicKey m1, PGPPublicKey m2) {
+        return m1.getKeyID() == m2.getKeyID() &&
+                Arrays.equals(m1.getFingerprint(), m2.getFingerprint());
+    }
+
+    // basic merge code from OpenKeychain (https://github.com/open-keychain/open-keychain)
+    public static PGPPublicKeyRing merge(PGPPublicKeyRing oldRing, PGPPublicKeyRing newRing) throws PGPException, IOException {
+        if (!equals(oldRing, newRing)) {
+            throw new PGPKeyValidationException("keys are not equal");
+        }
+
+        // remember which certs we already added. this is cheaper than semantic deduplication
+        Set<byte[]> certs = new TreeSet<>(new Comparator<byte[]>() {
+            public int compare(byte[] left, byte[] right) {
+                // check for length equality
+                if (left.length != right.length) {
+                    return left.length - right.length;
+                }
+                // compare byte-by-byte
+                for (int i = 0; i < left.length; i++) {
+                    if (left[i] != right[i]) {
+                        return (left[i] & 0xff) - (right[i] & 0xff);
+                    }
+                }
+                // ok they're the same
+                return 0;
+            }});
+
+        PGPPublicKeyRing result = oldRing;
+        PGPPublicKeyRing candidate = newRing;
+
+        // Pre-load all existing certificates
+        for (@SuppressWarnings("unchecked") Iterator<PGPPublicKey> i = result.getPublicKeys(); i.hasNext(); ) {
+            PGPPublicKey key = i.next();
+            for (@SuppressWarnings("unchecked") Iterator<PGPSignature> j = key.getSignatures(); j.hasNext(); ) {
+                PGPSignature cert = j.next();
+                certs.add(cert.getEncoded());
+            }
+        }
+
+        for (@SuppressWarnings("unchecked") Iterator<PGPPublicKey> i = candidate.getPublicKeys(); i.hasNext(); ) {
+            PGPPublicKey key = i.next();
+
+            final PGPPublicKey resultKey = result.getPublicKey(key.getKeyID());
+            if (resultKey == null) {
+                // otherwise, just insert the public key
+                result = PGPPublicKeyRing.insertPublicKey(result, key);
+                continue;
+            }
+
+            // Modifiable version of the old key, which we merge stuff into (keep old for comparison)
+            PGPPublicKey modified = resultKey;
+
+            // Iterate certifications
+            for (@SuppressWarnings("unchecked") Iterator<PGPSignature> j = key.getSignatures(); j.hasNext(); ) {
+                PGPSignature cert = j.next();
+                byte[] encoded = cert.getEncoded();
+                // Known cert, skip it
+                if (certs.contains(encoded)) {
+                    continue;
+                }
+                certs.add(encoded);
+                modified = PGPPublicKey.addCertification(modified, cert);
+            }
+
+            // If this is a subkey, merge it in and stop here
+            if (!key.isMasterKey()) {
+                if (modified != resultKey) {
+                    result = PGPPublicKeyRing.insertPublicKey(result, modified);
+                }
+                continue;
+            }
+
+            // Copy over all user id certificates
+            for (@SuppressWarnings("unchecked") Iterator<byte[]> r = key.getRawUserIDs(); r.hasNext(); ) {
+                byte[] rawUserId = r.next();
+
+                @SuppressWarnings("unchecked")
+                Iterator<PGPSignature> signaturesIt = key.getSignaturesForID(rawUserId);
+                // no signatures for this User ID, skip it
+                if (signaturesIt == null) {
+                    continue;
+                }
+                while (signaturesIt.hasNext()) {
+                    PGPSignature cert = signaturesIt.next();
+                    byte[] encoded = cert.getEncoded();
+                    // Known cert, skip it
+                    if (certs.contains(encoded)) {
+                        continue;
+                    }
+                    certs.add(encoded);
+                    modified = PGPPublicKey.addCertification(modified, rawUserId, cert);
+                }
+            }
+
+            // Copy over all user attribute certificates
+            for (@SuppressWarnings("unchecked") Iterator<PGPUserAttributeSubpacketVector> v = key.getUserAttributes(); v.hasNext(); ) {
+                PGPUserAttributeSubpacketVector vector = v.next();
+
+                @SuppressWarnings("unchecked")
+                Iterator<PGPSignature> signaturesIt = key.getSignaturesForUserAttribute(vector);
+                // no signatures for this user attribute attribute, skip it
+                if (signaturesIt == null) {
+                    continue;
+                }
+                while (signaturesIt.hasNext()) {
+                    PGPSignature cert = signaturesIt.next();
+                    byte[] encoded = cert.getEncoded();
+                    // Known cert, skip it
+                    if (certs.contains(encoded)) {
+                        continue;
+                    }
+                    certs.add(encoded);
+                    modified = PGPPublicKey.addCertification(modified, vector, cert);
+                }
+            }
+
+            // If anything change, save the updated (sub)key
+            if (modified != resultKey) {
+                result = PGPPublicKeyRing.insertPublicKey(result, modified);
+            }
+
+        }
+
+        return result;
     }
 
 }

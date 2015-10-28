@@ -23,6 +23,7 @@ import fm.last.commons.kyoto.KyotoDb;
 import fm.last.commons.kyoto.factory.KyotoDbBuilder;
 import fm.last.commons.kyoto.factory.Mode;
 import fm.last.commons.lang.units.JedecByteUnit;
+import org.apache.log4j.BasicConfigurator;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
 
@@ -32,6 +33,9 @@ import java.io.IOException;
 
 
 public class PGPLocalKeyring {
+    static {
+        BasicConfigurator.configure();
+    }
 
     private final KyotoDb db;
 
@@ -46,7 +50,7 @@ public class PGPLocalKeyring {
 
     /** Returns the public key represented by the given fingerprint. */
     public PGPPublicKeyRing getKey(String fingerprint) throws IOException, PGPException {
-        return getKey(hexToBytes(fingerprint));
+        return getKey(fingerprintKey(fingerprint));
     }
 
     /** Imports the given key. */
@@ -56,17 +60,18 @@ public class PGPLocalKeyring {
         PGPPublicKeyRing newring;
         PGPPublicKeyRing oldring = getKey(fpr);
         if (oldring != null) {
-            // TODO
-            newring = null;
+            newring = PGPUtils.merge(oldring, keyring);
         }
         else {
             newring = keyring;
         }
 
-        // TODO verify EVERYTHING
-
-        db.set(fpr.getBytes(), newring.getEncoded());
+        db.set(fingerprintKey(fpr), newring.getEncoded());
         return newring;
+    }
+
+    public void close() throws IOException {
+        db.close();
     }
 
     // TODO signKey method?
@@ -79,7 +84,7 @@ public class PGPLocalKeyring {
         return null;
     }
 
-    private byte[] hexToBytes(String s) {
+    private byte[] fingerprintKey(String s) {
         return DatatypeConverter.parseHexBinary(s);
     }
 

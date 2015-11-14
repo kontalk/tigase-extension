@@ -30,6 +30,7 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import javax.xml.bind.DatatypeConverter;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 
 
 public class PGPLocalKeyring {
@@ -54,8 +55,16 @@ public class PGPLocalKeyring {
     }
 
     /** Imports the given key. */
+    public PGPPublicKeyRing importKey(InputStream in) throws IOException, PGPException {
+        return importKey(PGPUtils.readPublicKeyring(in));
+    }
+
+    /** Imports the given key. */
     public PGPPublicKeyRing importKey(byte[] data) throws IOException, PGPException {
-        PGPPublicKeyRing keyring = PGPUtils.readPublicKeyring(data);
+        return importKey(PGPUtils.readPublicKeyring(data));
+    }
+
+    private PGPPublicKeyRing importKey(PGPPublicKeyRing keyring) throws IOException, PGPException {
         String fpr = PGPUtils.getFingerprint(keyring);
         PGPPublicKeyRing newring;
         PGPPublicKeyRing oldring = getKey(fpr);

@@ -20,6 +20,7 @@ package org.kontalk.xmppserver;
 
 import com.freiheit.gnupg.GnuPGContext;
 import com.freiheit.gnupg.GnuPGData;
+import com.freiheit.gnupg.GnuPGKey;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
@@ -186,7 +187,6 @@ public class KontalkKeyring {
                         .append(fpr);
 
                 try {
-                    System.out.println("CMD: <" + cmd + ">");
                     synchronized (globalContext) {
                         Runtime.getRuntime().exec(cmd.toString()).waitFor();
                     }
@@ -200,17 +200,11 @@ public class KontalkKeyring {
             }
             finally {
                 // remove key from global context
-                StringBuilder cmd = new StringBuilder("gpg2 --yes --batch --delete-key ")
-                        .append(fpr);
-
-                try {
-                    System.out.println("CMD: <" + cmd + ">");
-                    synchronized (globalContext) {
-                        Runtime.getRuntime().exec(cmd.toString()).waitFor();
+                synchronized (globalContext) {
+                    GnuPGKey key = globalContext.getKeyByFingerprint(fpr);
+                    if (key != null) {
+                        globalContext.delete(key, false);
                     }
-                }
-                catch (InterruptedException e) {
-                    // ignored
                 }
             }
         }

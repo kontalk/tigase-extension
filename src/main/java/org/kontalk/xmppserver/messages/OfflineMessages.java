@@ -181,6 +181,9 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                             Queue<Packet> results, Map<String, Object> settings) {
         if (session == null || !message.hasConnectionForMessageDelivery(session)) {
             try {
+                if (session != null && packet.getStanzaTo() != null && !session.isUserId(packet.getStanzaTo().getBareJID()))
+                    return;
+
                 savePacketForOffLineUser(packet, msgRepo);
             }
             catch (UserNotFoundException e) {
@@ -190,6 +193,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             }
             catch (TigaseDBException e) {
                 log.log(Level.WARNING, "TigaseDBException at trying to save packet for off-line user." + packet, e);
+            }
+            catch (NotAuthorizedException e) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST, "unable to store offline packet: not authorized ({0})", packet);
+                }
             }
         }
     }

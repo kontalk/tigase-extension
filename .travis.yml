@@ -8,7 +8,7 @@ before_install:
  - sudo apt-get install -qq gnupg2 libgpgme11-dev libkyotocabinet16 libkyotocabinet-dev
  - wget http://fallabs.com/kyotocabinet/javapkg/kyotocabinet-java-1.24.tar.gz
  - tar -xzf kyotocabinet-java-1.24.tar.gz
- - cd kyotocabinet-java-1.24 && ./configure --prefix=/usr && make && sudo make install
+ - cd kyotocabinet-java-1.24 && ./configure --prefix=/usr && make && sudo make install && cd ..
 install:
  - ./install-deps.sh ${TRAVIS_BRANCH}
  - mkdir -p target/lib && ln -s /usr/lib/libjkyotocabinet.so target/lib/libjkyotocabinet.so

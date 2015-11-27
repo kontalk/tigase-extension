@@ -396,8 +396,8 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
         @Override
         public int compare( Packet p1, Packet p2 ) {
-            String stamp1;
-            String stamp2;
+            String stamp1 = null;
+            String stamp2 = null;
 
             // Try XEP-0203 - the new XEP...
             Element stamp_el1 = p1.getElement().getChild( "delay", "urn:xmpp:delay" );
@@ -406,8 +406,13 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
                 // XEP-0091 support - the old one...
                 stamp_el1 = p1.getElement().getChild( "x", "jabber:x:delay" );
+                if ( stamp_el1 != null ){
+                    stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
+                }
             }
-            stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
+            if (stamp1 == null) {
+                stamp1 = "";
+            }
 
             // Try XEP-0203 - the new XEP...
             Element stamp_el2 = p2.getElement().getChild( "delay", "urn:xmpp:delay" );
@@ -416,8 +421,13 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
                 // XEP-0091 support - the old one...
                 stamp_el2 = p2.getElement().getChild( "x", "jabber:x:delay" );
+                if ( stamp_el2 != null ){
+                    stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
+                }
             }
-            stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
+            if (stamp2 == null) {
+                stamp2 = "";
+            }
 
             return stamp1.compareTo( stamp2 );
         }

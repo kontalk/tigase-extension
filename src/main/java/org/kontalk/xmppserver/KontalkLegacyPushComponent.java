@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -58,8 +59,12 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
     private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
-    private static final int NUM_THREADS = 20;
+    private static final int NUM_THREADS = 4;
+    private static final int NUM_WORKERS = 50;
+    private static final int TIMEOUT_DELAY = 10;
+    private static final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
 
+    private ScheduledExecutorService executor;
     private PushProvider provider = new GCMProvider();
     private PushRepository repository = new DataPushRepository();
 
@@ -120,13 +125,11 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
                             List<PushRegistrationInfo> infoList = repository.getRegistrationInfo(user);
                             for (PushRegistrationInfo info : infoList) {
                                 if (info.getProvider().equals(provider.getName())) {
-                                    provider.sendPushNotification(user, info);
+                                    sendPushNotification(user, info);
                                 }
                             }
                         }
-                        catch (IOException e) {
-                            log.log(Level.INFO, "GCM connection error", e);
-                        } catch (TigaseDBException e) {
+                        catch (TigaseDBException e) {
                             log.log(Level.INFO, "Database error", e);
                         }
                     }
@@ -135,6 +138,26 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
             }
 
         }
+    }
+
+    private void sendPushNotification(BareJID user, PushRegistrationInfo info) {
+        final Future<?> task = executor.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    provider.sendPushNotification(user, info);
+                }
+                catch (IOException e) {
+                    log.log(Level.INFO, "Push provider error", e);
+                }
+            }
+        });
+        executor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                task.cancel(true);
+            }
+        }, TIMEOUT_DELAY, TIMEOUT_UNIT);
     }
 
     @Override
@@ -147,6 +170,12 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
         Map<String, Object> defs = super.getDefaults(params);
         defs.put("packet-types", new String[]{"iq"});
         return defs;
+    }
+
+    @Override
+    public void initializationCompleted() {
+        super.initializationCompleted();
+        executor = Executors.newScheduledThreadPool(NUM_WORKERS);
     }
 
     @Override

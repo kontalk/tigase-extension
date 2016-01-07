@@ -19,7 +19,6 @@
 package org.kontalk.xmppserver.push;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -91,7 +90,6 @@ public class GCMProvider implements PushProvider {
             return;
         }
 
-        String jidString = jid.toString();
         String regId = info.getRegistrationId();
         if (regId != null) {
             com.google.android.gcm.server.Message msg = new com.google.android.gcm.server.Message.Builder()

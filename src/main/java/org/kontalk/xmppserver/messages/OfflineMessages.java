@@ -368,7 +368,6 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             // remove any previous delay element
             Element delay = elem.getChild("delay", "urn:xmpp:delay");
             if (delay == null) {
-                log.log( Level.WARNING, "Restoring packet, possible offline storage loop? {0}", pac );
                 String from = pac.getStanzaTo().getDomain();
                 Element x = new Element( "delay", "Offline Storage - " + defHost, new String[] {
                         "from",

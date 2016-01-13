@@ -146,7 +146,7 @@ public class PGPUtils {
         Iterator<PGPSignature> sigs = key.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
         while (sigs != null && sigs.hasNext()) {
             PGPSignature sig = sigs.next();
-            if (sig.getKeyID() == key.getKeyID() && verifyKeySignature(key, sig, key)) {
+            if (sig.getKeyID() == key.getKeyID() && verifyKeySignature(key, sig)) {
                 if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
                     valid = sig;
                 // TODO else if (sig.getSignatureType() == PGPSignature.CERTIFICATION_REVOCATION) ...
@@ -176,9 +176,9 @@ public class PGPUtils {
         return valid != null;
     }
 
-    private static boolean verifyKeySignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey) throws PGPException {
-        sig.init(new BcPGPContentVerifierBuilderProvider(), signerKey);
-        return sig.verifyCertification(publicKey, publicKey);
+    private static boolean verifyKeySignature(PGPPublicKey publicKey, PGPSignature sig) throws PGPException {
+        sig.init(new BcPGPContentVerifierBuilderProvider(), publicKey);
+        return sig.verifyCertification(publicKey);
     }
 
     private static boolean verifyUidSignature(PGPPublicKey publicKey, PGPSignature sig, PGPPublicKey signerKey, String uid) throws PGPException {

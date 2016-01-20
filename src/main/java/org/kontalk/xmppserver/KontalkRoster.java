@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver;
 
+import org.kontalk.xmppserver.auth.KontalkAuth;
 import org.kontalk.xmppserver.probe.DataServerlistRepository;
 import org.kontalk.xmppserver.probe.ProbeComponent;
 import org.kontalk.xmppserver.probe.ServerlistRepository;
@@ -132,7 +133,7 @@ public class KontalkRoster extends XMPPProcessor implements XMPPProcessorIfc {
                         boolean isLocalJid = domain.equalsIgnoreCase(serverDomain);
 
                         if (isLocalJid) {
-                            if (session.getUserRepository().getUserUID(localJid) > 0) {
+                            if (KontalkAuth.getUserRepository().getUserUID(localJid) > 0) {
                                 // local user
                                 found.add(jid);
                             }

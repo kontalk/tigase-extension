@@ -37,10 +37,7 @@ import org.kontalk.xmppserver.registration.VerificationRepository;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
-import tigase.db.NonAuthUserRepository;
-import tigase.db.TigaseDBException;
-import tigase.db.UserExistsException;
-import tigase.db.UserNotFoundException;
+import tigase.db.*;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
@@ -499,7 +496,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
             throws TigaseDBException {
         try {
-            session.getUserRepository().addUser(jid);
+            userRepository.addUser(jid);
         }
         catch (UserExistsException e) {
             // user already exists

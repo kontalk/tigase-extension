@@ -171,7 +171,7 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
         if (keyring.postAuthenticate(user, oldFingerprint)) {
             if (!userExists) {
                 try {
-                    session.getUserRepository().addUser(user.getJID());
+                    KontalkAuth.getUserRepository().addUser(user.getJID());
                 }
                 catch (TigaseDBException dbe) {
                     log.log(Level.WARNING, "unable to create user " + user.getJID(), dbe);

@@ -21,7 +21,10 @@ package org.kontalk.xmppserver.auth;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.KontalkKeyring;
+import tigase.db.DBInitException;
+import tigase.db.RepositoryFactory;
 import tigase.db.TigaseDBException;
+import tigase.db.UserRepository;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
 import tigase.xmpp.NotAuthorizedException;
@@ -39,7 +42,21 @@ public class KontalkAuth {
     private static final String NODE_AUTH = "kontalk/auth";
     private static final String KEY_FINGERPRINT = "fingerprint";
 
+    private static UserRepository userRepository = null;
+
     private KontalkAuth() {}
+
+    public static UserRepository getUserRepository() throws TigaseDBException {
+        if (userRepository == null) {
+            try {
+                userRepository = RepositoryFactory.getUserRepository(null, null, null);
+            }
+            catch (Exception e) {
+                throw new TigaseDBException("Unable to get user repository instance", e);
+            }
+        }
+        return userRepository;
+    }
 
     public static String getUserFingerprint(XMPPResourceConnection session)
             throws TigaseDBException, NotAuthorizedException {
@@ -48,12 +65,12 @@ public class KontalkAuth {
 
     public static String getUserFingerprint(XMPPResourceConnection session, BareJID jid)
             throws TigaseDBException {
-        return session.getUserRepository().getData(jid, NODE_AUTH, KEY_FINGERPRINT, null);
+        return getUserRepository().getData(jid, NODE_AUTH, KEY_FINGERPRINT, null);
     }
 
     public static void setUserFingerprint(XMPPResourceConnection session, BareJID jid, String fingerprint)
             throws TigaseDBException {
-        session.getUserRepository().setData(jid, NODE_AUTH, KEY_FINGERPRINT, fingerprint);
+        getUserRepository().setData(jid, NODE_AUTH, KEY_FINGERPRINT, fingerprint);
     }
 
     public static KontalkKeyring getKeyring(XMPPResourceConnection session) throws IOException, PGPException {

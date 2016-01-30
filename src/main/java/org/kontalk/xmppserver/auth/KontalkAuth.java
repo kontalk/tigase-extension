@@ -21,7 +21,6 @@ package org.kontalk.xmppserver.auth;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.util.encoders.Hex;
 import org.kontalk.xmppserver.KontalkKeyring;
-import tigase.db.DBInitException;
 import tigase.db.RepositoryFactory;
 import tigase.db.TigaseDBException;
 import tigase.db.UserRepository;
@@ -33,6 +32,7 @@ import tigase.xmpp.XMPPResourceConnection;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+
 
 /**
  * Kontalk authentication stuff.

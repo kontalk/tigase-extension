@@ -21,6 +21,7 @@ package org.kontalk.xmppserver;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
@@ -76,6 +77,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String IQ_FORM_ELEM_NAME = "x" ;
     private static final String IQ_FORM_XMLNS = "jabber:x:data";
     private static final String IQ_FORM_KONTALK_CODE_XMLNS = "http://kontalk.org/protocol/register#code";
+    private static final String IQ_FORM_KONTALK_PRIVATEKEY_XMLNS = "http://kontalk.org/protocol/register#privatekey";
 
     // form fields
     private static final String FORM_FIELD_PHONE = "phone";
@@ -84,6 +86,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String FORM_FIELD_REVOKED = "revoked";
     private static final String FORM_FIELD_FORCE = "force";
     private static final String FORM_FIELD_FALLBACK = "fallback";
+    private static final String FORM_FIELD_PRIVATEKEY = "privatekey";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
             new String[]{"http://jabber.org/features/iq-register"})};
@@ -94,6 +97,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String ERROR_MALFORMED_REQUEST = "Please provide either a phone number or a public key and a verification code.";
     private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
     private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
+
+    private static final String NODE_PRIVATEKEY = "kontalk/privatekey";
+    private static final String KEY_PRIVATEKEY_DATA = "keydata";
+    private static final String KEY_PRIVATEKEY_TOKEN = "token";
 
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
@@ -237,6 +244,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
                 switch (type) {
                     case set:
+                        // FIXME handle all the cases according to the FORM_TYPE
 
                         Element query = request.getChild(Iq.QUERY_NAME, XMLNSS[0]);
                         Element formElement = (query != null) ? query.getChild(IQ_FORM_ELEM_NAME, IQ_FORM_XMLNS) : null;
@@ -297,41 +305,51 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 break;
                             }
 
-                            // public key + revoked key: key rollover or upgrade from legacy
                             if (session.isAuthorized()) {
-                                String oldFingerprint;
-                                try {
-                                    oldFingerprint = KontalkAuth.getUserFingerprint(session);
+                                // private key storage
+                                String privateKey = form.getAsString(FORM_FIELD_PRIVATEKEY);
+                                if (privateKey != null) {
+                                    Packet response = storePrivateKey(session, packet, privateKey);
+                                    packet.processedBy(ID);
+                                    results.offer(response);
+                                    break;
                                 }
-                                catch (UserNotFoundException e) {
-                                    oldFingerprint = null;
-                                    log.log(Level.INFO, "user not found: {0}", session);
-                                }
+                                else {
+                                    // public key + revoked key: key rollover or upgrade from legacy
+                                    String oldFingerprint;
+                                    try {
+                                        oldFingerprint = KontalkAuth.getUserFingerprint(session);
+                                    }
+                                    catch (UserNotFoundException e) {
+                                        oldFingerprint = null;
+                                        log.log(Level.INFO, "user not found: {0}", session);
+                                    }
 
-                                if (oldFingerprint != null) {
-                                    // do not use public key from certificate
-                                    publicKeyData = null;
+                                    if (oldFingerprint != null) {
+                                        // do not use public key from certificate
+                                        publicKeyData = null;
 
-                                    // user already has a key, check if revoked key fingerprint matches
-                                    String publicKey = form.getAsString(FORM_FIELD_PUBLICKEY);
-                                    String revoked = form.getAsString(FORM_FIELD_REVOKED);
-                                    if (publicKey != null && revoked != null) {
-                                        publicKeyData = Base64.decode(publicKey);
-                                        byte[] revokedData = Base64.decode(revoked);
-                                        KontalkKeyring keyring = getKeyring(session);
-                                        if (!keyring.revoked(revokedData, oldFingerprint)) {
-                                            // invalid revocation key
-                                            log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
-                                            results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, false));
-                                            break;
+                                        // user already has a key, check if revoked key fingerprint matches
+                                        String publicKey = form.getAsString(FORM_FIELD_PUBLICKEY);
+                                        String revoked = form.getAsString(FORM_FIELD_REVOKED);
+                                        if (publicKey != null && revoked != null) {
+                                            publicKeyData = Base64.decode(publicKey);
+                                            byte[] revokedData = Base64.decode(revoked);
+                                            KontalkKeyring keyring = getKeyring(session);
+                                            if (!keyring.revoked(revokedData, oldFingerprint)) {
+                                                // invalid revocation key
+                                                log.log(Level.INFO, "Invalid revocation key for user {0}", session.getBareJID());
+                                                results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_REVOKED, false));
+                                                break;
+                                            }
                                         }
                                     }
-                                }
 
-                                // user has no key or revocation key was fine, accept the new key
-                                if (publicKeyData != null) {
-                                    rolloverContinue(session, publicKeyData, packet, results);
-                                    break;
+                                    // user has no key or revocation key was fine, accept the new key
+                                    if (publicKeyData != null) {
+                                        rolloverContinue(session, publicKeyData, packet, results);
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -533,6 +551,25 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         else {
             results.offer(Authorization.FORBIDDEN.getResponseMessage(packet, ERROR_INVALID_PUBKEY, false));
         }
+    }
+
+    private Packet storePrivateKey(XMPPResourceConnection session, Packet packet, String privateKeyB64)
+            throws NotAuthorizedException, TigaseDBException {
+        String token = RandomStringUtils.random(40, "0123456789ABCDEF");
+        session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_DATA, privateKeyB64);
+        session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_TOKEN, token);
+        return packet.okResult(preparePrivateKeyStoredResponseForm(token), 0);
+    }
+
+    private Element preparePrivateKeyStoredResponseForm(String token) {
+        Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
+        Form form = new Form("form", null, null);
+
+        form.addField(Field.fieldHidden("FORM_TYPE", IQ_FORM_KONTALK_PRIVATEKEY_XMLNS));
+        form.addField(Field.fieldTextSingle("token", token, "Private key identification token"));
+
+        query.addChild(form.getElement());
+        return query;
     }
 
     private Packet errorUserExists(Packet packet) {

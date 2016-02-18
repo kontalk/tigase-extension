@@ -91,7 +91,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** Activates client state indication (that is, client going to inactive state). */
     private void setInactive(XMPPResourceConnection session) {
-        session.putSessionData(SESSION_QUEUE, new InternalQueue());
+        // check if there is already a queue
+        final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
+        if (queue == null)
+            session.putSessionData(SESSION_QUEUE, new InternalQueue());
     }
 
     /** Deactivates client state indication (that is, client going to active state). */

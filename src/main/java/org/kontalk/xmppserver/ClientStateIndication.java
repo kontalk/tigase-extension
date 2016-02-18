@@ -40,6 +40,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     private static final String XMLNS = "urn:xmpp:csi:0";
     public static final String ID = XMLNS;
 
+    /** Max size of the packet queue. After reaching this point, data will be sent out to the client. */
+    // TODO make this a parameter
+    private static final int MAX_QUEUE_SIZE = 50;
+
     private static final String[] XMLNSS = {XMLNS, XMLNS};
 
     private static final String ELEM_ACTIVE = "active";
@@ -80,7 +84,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "User disconnected, activating session {0}", session);
             }
-            flush(session, results, false, true);
+            flush(session, results, false, true, true);
         }
         else {
             if (log.isLoggable(Level.FINEST)) {
@@ -94,15 +98,15 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         // check if there is already a queue
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
-            session.putSessionData(SESSION_QUEUE, new InternalQueue());
+            session.putSessionData(SESSION_QUEUE, new InternalQueue(MAX_QUEUE_SIZE));
     }
 
     /** Deactivates client state indication (that is, client going to active state). */
     private void setActive(XMPPResourceConnection session, Queue<Packet> results) {
-        flush(session, results, true, false);
+        flush(session, results, true, false, true);
     }
 
-    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence, boolean stopped) {
+    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence, boolean stopped, boolean remove) {
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
             return;
@@ -155,7 +159,8 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             }
             // destroy and remove stanza store
             queue.clear();
-            session.removeSessionData(SESSION_QUEUE);
+            if (remove)
+                session.removeSessionData(SESSION_QUEUE);
         }
     }
 
@@ -181,6 +186,11 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
                         }
                         if (filterPacket(res, queue)) {
                             it.remove();
+                        }
+
+                        // queue is getting big, flush them all!
+                        if (queue.needsFlush()) {
+                            flush(session, results, true, false, false);
                         }
                     }
                 }
@@ -271,6 +281,12 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     /** A typedef for the internal stanza queue for CSI. */
     private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
         private List<Message> messages;
+        private int maxSize;
+
+        public InternalQueue(int max) {
+            super();
+            maxSize = max;
+        }
 
         public void putMessage(Message packet) {
             if (messages == null) {
@@ -289,6 +305,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             if (messages != null) {
                 messages.clear();
             }
+        }
+
+        public boolean needsFlush() {
+            return ((messages != null ? messages.size() : 0) + size()) >= maxSize;
         }
     }
 

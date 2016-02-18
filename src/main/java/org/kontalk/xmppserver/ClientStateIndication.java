@@ -25,6 +25,8 @@ import tigase.server.Presence;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -280,6 +282,12 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** A typedef for the internal stanza queue for CSI. */
     private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
+        private static final DateFormat formatter;
+        static {
+            formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+            formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+        }
+
         private List<Message> messages;
         private int maxSize;
 
@@ -288,15 +296,39 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             maxSize = max;
         }
 
+        @Override
+        public Presence put(JID key, Presence value) {
+            return super.put(key, addDelay(value));
+        }
+
         public void putMessage(Message packet) {
             if (messages == null) {
                 messages = new LinkedList<>();
             }
-            messages.add(packet);
+            messages.add(addDelay(packet));
         }
 
         public List<Message> getMessages() {
             return messages;
+        }
+
+        private <T extends Packet> T addDelay(T packet) {
+            Element elem = packet.getElement();
+            // do not overwrite old delay element
+            if (elem.getChild("delay", "urn:xmpp:delay") == null) {
+                String stamp;
+
+                synchronized (formatter) {
+                    stamp = formatter.format(new Date());
+                }
+
+                Element x = new Element("delay", (String) null,
+                        new String[] { "stamp", "xmlns" },
+                        new String[] {  stamp, "urn:xmpp:delay" }
+                );
+                elem.addChild(x);
+            }
+            return packet;
         }
 
         @Override

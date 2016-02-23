@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver;
 
 import tigase.db.NonAuthUserRepository;
+import tigase.server.Iq;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.server.Presence;
@@ -177,6 +178,9 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             return;
         }
 
+        // it will be true if at least a packet is going through
+        boolean needsFlush = false;
+
         for (Iterator<Packet> it = results.iterator(); it.hasNext(); ) {
             Packet res = it.next();
             try {
@@ -189,10 +193,17 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
                         if (filterPacket(res, queue)) {
                             it.remove();
                         }
+                        else if (!isSilent(res)) {
+                            // this packet will go through
+                            // do a flush later since we are transmitting
+                            needsFlush = true;
+                        }
 
                         // queue is getting big, flush them all!
                         if (queue.needsFlush()) {
                             flush(session, results, true, false, false);
+                            // no need to flush later, unless it's changed to true again
+                            needsFlush = false;
                         }
                     }
                 }
@@ -200,6 +211,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             catch (NoConnectionIdException e) {
                 // ignore
             }
+        }
+
+        if (needsFlush) {
+            flush(session, results, true, false, false);
         }
     }
 
@@ -228,6 +243,12 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         }
 
         return false;
+    }
+
+    /** Returns true if the given packet is silent (e.g. ping). */
+    private boolean isSilent(Packet packet) {
+        return packet.getElemName() == Iq.ELEM_NAME &&
+                packet.getElement().getChild("ping", "urn:xmpp:ping") != null;
     }
 
     private boolean isPresence(Packet packet) {

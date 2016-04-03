@@ -13,19 +13,6 @@ if [ "$BRANCH" == "" ]; then
 fi
 echo "On branch ${BRANCH}"
 
-REPOS="gnupg-for-java"
-
-for REPO in ${REPOS}; do
-  echo "Building ${REPO}"
-  (git clone -b "${BRANCH}" "https://github.com/kontalk/${REPO}.git" ||
-   git clone -b "${BRANCH}-kontalk" "https://github.com/kontalk/${REPO}.git") &&
-  cd "${REPO}" &&
-  mvn install &&
-  cd .. &&
-  rm -fR "${REPO}" ||
-  exit $?
-done
-
 REPO="tigase-server"
 echo "Building ${REPO}"
 (git clone -b "${BRANCH}" "https://github.com/kontalk/${REPO}.git" ||

@@ -18,7 +18,6 @@
 
 package org.kontalk.xmppserver.auth;
 
-import com.freiheit.gnupg.GnuPGException;
 import org.bouncycastle.openpgp.PGPException;
 import org.kontalk.xmppserver.KontalkKeyring;
 import org.kontalk.xmppserver.KontalkUser;
@@ -62,7 +61,7 @@ public class SaslKontalkToken extends AbstractSasl {
         try {
             user = keyring.verifyLegacyToken(response, legacyServerFingerprint);
         }
-        catch (GnuPGException e) {
+        catch (Exception e) {
             throw new XmppSaslException(XmppSaslException.SaslError.temporary_auth_failure);
         }
 

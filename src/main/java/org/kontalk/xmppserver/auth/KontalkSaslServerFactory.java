@@ -38,9 +38,11 @@ public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
         if (mechanism.equals(SaslKontalkToken.MECHANISM)) {
             return new SaslKontalkToken(props, callbackHandler);
         }
+        /*
         else if (mechanism.equals(SaslKontalkPlainToken.MECHANISM)) {
             return new SaslKontalkPlainToken(props, callbackHandler);
         }
+        */
         else {
             return super.createSaslServer(mechanism, protocol, serverName, props, callbackHandler);
         }

@@ -20,40 +20,19 @@ package org.kontalk.xmppserver.auth;
 
 import tigase.auth.mechanisms.TigaseSaslServerFactory;
 
-import javax.security.auth.callback.CallbackHandler;
-import javax.security.sasl.SaslException;
-import javax.security.sasl.SaslServer;
 import java.util.Map;
 
 
 /**
- * A custom SASL server factory to support KONTALK-TOKEN/PLAIN auth mechanism.
+ * A custom SASL server factory to allow only EXTERNAL.
  * @author Daniele Ricci
  */
 public class KontalkSaslServerFactory extends TigaseSaslServerFactory {
 
     @Override
-    public SaslServer createSaslServer(final String mechanism, final String protocol, final String serverName,
-                                       final Map<String, ?> props, final CallbackHandler callbackHandler) throws SaslException {
-        if (mechanism.equals(SaslKontalkToken.MECHANISM)) {
-            return new SaslKontalkToken(props, callbackHandler);
-        }
-        /*
-        else if (mechanism.equals(SaslKontalkPlainToken.MECHANISM)) {
-            return new SaslKontalkPlainToken(props, callbackHandler);
-        }
-        */
-        else {
-            return super.createSaslServer(mechanism, protocol, serverName, props, callbackHandler);
-        }
-    }
-
-    @Override
     public String[] getMechanismNames(Map<String, ?> props) {
         return new String[] {
             "EXTERNAL",
-            SaslKontalkToken.MECHANISM,
-            SaslKontalkPlainToken.MECHANISM,
         };
     }
 

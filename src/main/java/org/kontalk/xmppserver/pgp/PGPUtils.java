@@ -165,7 +165,8 @@ public class PGPUtils {
         while (sigs != null && sigs.hasNext()) {
             PGPSignature sig = sigs.next();
             if (sig.getKeyID() == keyId && verifyUidSignature(key, sig, signerKey, uid)) {
-                if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION) {
+                if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION ||
+                        sig.getSignatureType() == PGPSignature.CASUAL_CERTIFICATION) {
                     if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
                         valid = sig;
                 }

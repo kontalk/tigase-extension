@@ -99,6 +99,13 @@ public class GnuPGInterface {
         }
     }
 
+    private void deleteKey(String keyId) throws IOException, PGPException {
+        synchronized (this) {
+            if (invoke("--yes", "--batch", "--delete-key", keyId) != 0)
+                throw new PGPException("error deleting key");
+        }
+    }
+
     public byte[] signKey(byte[] keyData, String signKeyId) throws IOException, PGPException {
         synchronized (this) {
             importKey(keyData);
@@ -111,7 +118,12 @@ public class GnuPGInterface {
             if (invoke("--yes", "--batch", "-u", signKeyId, "--sign-key", fingerprint) != 0)
                 throw new PGPException("error signing key");
 
-            return exportKey(fingerprint);
+            byte[] signedKey = exportKey(fingerprint);
+
+            // delete the imported key
+            deleteKey(fingerprint);
+
+            return signedKey;
         }
     }
 

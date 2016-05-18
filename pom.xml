@@ -99,5 +99,11 @@
       <artifactId>json-simple</artifactId>
       <version>1.1.1</version>
     </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-all</artifactId>
+      <version>2.4.6</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 </project>

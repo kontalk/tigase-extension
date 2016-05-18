@@ -49,7 +49,7 @@ public class KontalkKeyring {
     private final String secretKeyFingerprint;
 
     /** Use {@link #getInstance(String)} instead. */
-    public KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
+    private KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
         this.domain = domain;
         this.keyring = new PGPLocalKeyring(keyring);
 
@@ -138,17 +138,8 @@ public class KontalkKeyring {
         return GnuPGInterface.getInstance().signKey(keyData, secretKeyFingerprint);
     }
 
-    /**
-     * Verifies Kontalk legacy authentication tokens.
-     * @param token the authentication token
-     * @param fingerprint fingerprint of the legacy server
-     * @return a Kontalk user instance if successful.
-     * @deprecated Legacy token support will be dropped soon.
-     */
-    @Deprecated
-    public KontalkUser verifyLegacyToken(byte[] token, String fingerprint) {
-        // to be removed soon
-        throw new IllegalArgumentException();
+    public byte[] signData(byte[] data) throws IOException, PGPException {
+        return GnuPGInterface.getInstance().signData(data, secretKeyFingerprint);
     }
 
     public void close() throws IOException {

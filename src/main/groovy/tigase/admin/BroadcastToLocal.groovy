@@ -33,14 +33,17 @@ AS:Group: Notifications
 
 package tigase.admin
 
-import tigase.server.*
-import tigase.util.*
-import tigase.xmpp.*
-import tigase.db.*
-import tigase.xml.*
-import tigase.cluster.*;
-import tigase.cluster.api.*;
-import tigase.cluster.strategy.*;
+import org.kontalk.xmppserver.KontalkKeyring
+import tigase.cluster.strategy.ClusteringStrategyIfc
+import tigase.db.UserRepository
+import tigase.server.Command
+import tigase.server.Iq
+import tigase.server.Message
+import tigase.server.Permissions
+import tigase.util.Base64
+import tigase.xml.Element
+import tigase.xmpp.JID
+import tigase.xmpp.StanzaType;
 
 
 def FROM_JID = "from-jid"
@@ -112,10 +115,23 @@ def jidFrom = JID.jidInstanceNS(fromJid)
 def type = StanzaType.valueOf(msg_type)
 def msg_body = body.join('\n')
 
-def msg = Message.getMessage(null, null, type, msg_body, subject, null, "admin")
 def result = p.commandResult(Command.DataType.result)
 Command.addTextField(result, "Note", "Operation successful");
 results += result
+
+def msg
+
+try {
+    def keyring = KontalkKeyring.getInstance(jidFrom.getDomain())
+    def signed_body = Base64.encode(keyring.signData(msg_body.getBytes()))
+    msg = Message.getMessage(null, null, type, null, subject, null, "admin")
+    def signed_elem = new Element("x", signed_body);
+    signed_elem.setXMLNS("jabber:x:signed")
+    msg.getElement().addChild(signed_elem)
+}
+catch (Exception e) {
+    msg = Message.getMessage(null, null, type, msg_body, subject, null, "admin")
+}
 
 def user_repo = (UserRepository)userRepository
 def users = user_repo.getUsers()

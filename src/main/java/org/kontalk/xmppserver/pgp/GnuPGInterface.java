@@ -78,7 +78,7 @@ public class GnuPGInterface {
 
     public void importKey(String filename) throws IOException, PGPException {
         synchronized (this) {
-            if (invoke("--import", filename) != 0)
+            if (invoke("--import", "--yes", "--batch", filename) != 0)
                 throw new PGPException("error importing key");
         }
     }
@@ -124,6 +124,15 @@ public class GnuPGInterface {
             deleteKey(fingerprint);
 
             return signedKey;
+        }
+    }
+
+    public byte[] signData(byte[] data, String signKeyId) throws IOException, PGPException {
+        synchronized (this) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            if (invoke(data, output, "--yes", "--batch", "--sign", "-u", signKeyId) != 0)
+                throw new PGPException("error signing data");
+            return output.toByteArray();
         }
     }
 

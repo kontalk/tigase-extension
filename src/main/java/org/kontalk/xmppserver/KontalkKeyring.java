@@ -40,12 +40,13 @@ import java.util.Map;
  * @author Daniele Ricci
  */
 public class KontalkKeyring {
-    private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
+    private static final Map<String, KontalkKeyring> instances = new HashMap<>();
 
     private final String domain;
     private final PGPLocalKeyring keyring;
 
     private final PGPPublicKey secretMasterKey;
+    private final PGPPublicKeyRing secretPublicKeyring;
     private final String secretKeyFingerprint;
 
     /** Use {@link #getInstance(String)} instead. */
@@ -58,9 +59,13 @@ public class KontalkKeyring {
         GnuPGInterface.getInstance().importKey(secretPublicKeyFile);
 
         // calculate secret key fingerprint for signing
-        PGPPublicKeyRing secretPublicKey = PGPUtils.readPublicKeyring(new FileInputStream(secretPublicKeyFile));
-        secretMasterKey = PGPUtils.getMasterKey(secretPublicKey);
+        secretPublicKeyring = PGPUtils.readPublicKeyring(new FileInputStream(secretPublicKeyFile));
+        secretMasterKey = PGPUtils.getMasterKey(secretPublicKeyring);
         secretKeyFingerprint = PGPUtils.getFingerprint(secretMasterKey);
+    }
+
+    public PGPPublicKeyRing getSecretPublicKey() {
+        return secretPublicKeyring;
     }
 
     /**

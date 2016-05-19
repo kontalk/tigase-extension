@@ -78,14 +78,14 @@ public class GnuPGInterface {
 
     public void importKey(String filename) throws IOException, PGPException {
         synchronized (this) {
-            if (invoke("--import", "--yes", "--batch", filename) != 0)
+            if (invoke("-q", "--yes", "--batch", "--import", filename) != 0)
                 throw new PGPException("error importing key");
         }
     }
 
     public void importKey(byte[] keyData) throws IOException, PGPException {
         synchronized (this) {
-            if (invoke(keyData, "--import") != 0)
+            if (invoke(keyData, "-q", "--yes", "--batch", "--import") != 0)
                 throw new PGPException("error importing key");
         }
     }

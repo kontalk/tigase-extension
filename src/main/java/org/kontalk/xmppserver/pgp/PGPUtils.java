@@ -110,7 +110,7 @@ public class PGPUtils {
     }
 
     public static boolean isRevoked(PGPPublicKey key) throws PGPException {
-        return key.isRevoked() && findValidRevocationSignature(key);
+        return key.hasRevocation() && findValidRevocationSignature(key);
     }
 
     public static boolean isExpired(PGPPublicKey key) {

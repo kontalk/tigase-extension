@@ -33,6 +33,7 @@ AS:Group: Notifications
 
 package tigase.admin
 
+import org.apache.commons.lang3.RandomStringUtils
 import org.kontalk.xmppserver.KontalkKeyring
 import tigase.cluster.strategy.ClusteringStrategyIfc
 import tigase.db.UserRepository
@@ -120,17 +121,18 @@ Command.addTextField(result, "Note", "Operation successful");
 results += result
 
 def msg
+def msgid = RandomStringUtils.randomAlphanumeric(20)
 
 try {
     def keyring = KontalkKeyring.getInstance(jidFrom.getDomain())
     def signed_body = Base64.encode(keyring.signData(msg_body.getBytes()))
-    msg = Message.getMessage(null, null, type, null, subject, null, "admin")
+    msg = Message.getMessage(null, null, type, null, subject, null, msgid)
     def signed_elem = new Element("x", signed_body);
     signed_elem.setXMLNS("jabber:x:signed")
     msg.getElement().addChild(signed_elem)
 }
 catch (Exception e) {
-    msg = Message.getMessage(null, null, type, msg_body, subject, null, "admin")
+    msg = Message.getMessage(null, null, type, msg_body, subject, null, msgid)
 }
 
 def user_repo = (UserRepository)userRepository

@@ -40,7 +40,7 @@ import java.util.logging.Logger;
 public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc, XMPPStopListenerIfc {
     private static Logger log = Logger.getLogger(ClientStateIndication.class.getName());
 
-    private static final String XMLNS = "urn:xmpp:csi:0";
+    private static final String XMLNS = "kontalk:urn:xmpp:csi:0";
     public static final String ID = XMLNS;
 
     /** Max size of the packet queue. After reaching this point, data will be sent out to the client. */

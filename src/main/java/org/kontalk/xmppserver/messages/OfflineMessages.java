@@ -27,6 +27,7 @@ import tigase.util.DNSResolver;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.*;
+import tigase.xmpp.impl.C2SDeliveryErrorProcessor;
 import tigase.xmpp.impl.FlexibleOfflineMessageRetrieval;
 import tigase.xmpp.impl.Message;
 import tigase.xmpp.impl.PresenceState;
@@ -348,6 +349,9 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             }
 
             Element elem = pac.getElement().clone();
+
+            C2SDeliveryErrorProcessor.filterErrorElement(elem);
+
             String stamp;
 
             synchronized ( formatter ) {

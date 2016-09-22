@@ -341,7 +341,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                         break;
 
                     case get: {
-                        // TODO instructions form
+                        // instructions form
+                        results.offer(buildInstructionsForm(packet));
                         break;
                     }
                     default:
@@ -372,6 +373,27 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet,
                     ERROR_INVALID_PUBKEY, true));
         }
+    }
+
+    private Packet buildInstructionsForm(Packet packet) {
+        Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
+        Form form = new Form("form", null, null);
+
+        form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
+        Field phone = Field.fieldTextSingle("phone", null, "Phone number");
+        phone.setRequired(true);
+        form.addField(phone);
+
+        Field force = Field.fieldTextSingle("force", null, "Force registration");
+        force.setRequired(false);
+        form.addField(force);
+
+        form.addField(Field.fieldBoolean("force", null, "Force registration"));
+        form.addField(Field.fieldBoolean("fallback", null, "Fallback"));
+
+        query.addChild(form.getElement());
+
+        return packet.okResult(query, 0);
     }
 
     private byte[] getPublicKey(XMPPResourceConnection session) throws PGPException, IOException {

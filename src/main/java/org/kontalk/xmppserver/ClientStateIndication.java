@@ -192,18 +192,18 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
                         }
                         if (filterPacket(res, queue)) {
                             it.remove();
+                            // queue is getting big, flush them all!
+                            if (queue.needsFlush()) {
+                                needsFlush = true;
+                                // since we are going to flush anyway, no need to continue
+                                // (fix for ConcurrentModificationException)
+                                break;
+                            }
                         }
                         else if (!isSilent(res)) {
                             // this packet will go through
                             // do a flush later since we are transmitting
                             needsFlush = true;
-                        }
-
-                        // queue is getting big, flush them all!
-                        if (queue.needsFlush()) {
-                            flush(session, results, true, false, false);
-                            // no need to flush later, unless it's changed to true again
-                            needsFlush = false;
                         }
                     }
                 }

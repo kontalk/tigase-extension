@@ -47,6 +47,10 @@ public class DataServerlistRepository implements ServerlistRepository {
     public void init(Map<String, Object> props) throws DBInitException {
         try {
             String dbUri = (String) props.get("db-uri");
+            if (dbUri == null) {
+                // fallback on user database
+                dbUri = System.getProperty(RepositoryFactory.GEN_USER_DB_URI_PROP_KEY);
+            }
             if (dbUri != null) {
                 repo = RepositoryFactory.getDataRepository(null, dbUri, null);
             }

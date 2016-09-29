@@ -53,6 +53,10 @@ public class DataPushRepository implements PushRepository {
     public void init(Map<String, Object> props) throws DBInitException {
         try {
             String dbUri = (String) props.get("db-uri");
+            if (dbUri == null) {
+                // fallback on user database
+                dbUri = System.getProperty(RepositoryFactory.GEN_USER_DB_URI_PROP_KEY);
+            }
             if (dbUri != null) {
                 repo = RepositoryFactory.getDataRepository(null, dbUri, null);
                 repo.initPreparedStatement(CREATE_QUERY_ID, CREATE_QUERY_SQL);

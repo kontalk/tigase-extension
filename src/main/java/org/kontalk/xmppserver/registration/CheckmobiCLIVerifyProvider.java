@@ -20,7 +20,7 @@ package org.kontalk.xmppserver.registration;
 
 import org.kontalk.xmppserver.registration.checkmobi.CheckmobiValidationClient;
 import org.kontalk.xmppserver.registration.checkmobi.RequestResult;
-import org.kontalk.xmppserver.registration.checkmobi.VerifyResult;
+import org.kontalk.xmppserver.registration.checkmobi.StatusResult;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -31,21 +31,18 @@ import java.util.logging.Logger;
 
 
 /**
- * Verification provider for CheckMobi using reverse caller ID verification API.
+ * Verification provider for CheckMobi using caller ID verification API.
  * @author Daniele Ricci
  */
-public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvider {
-    private static Logger log = Logger.getLogger(CheckmobiReverseVerifyProvider.class.getName());
+public class CheckmobiCLIVerifyProvider implements PhoneNumberVerificationProvider {
+    private static Logger log = Logger.getLogger(CheckmobiCLIVerifyProvider.class.getName());
 
-    private static final int PROOF_LENGTH = 4;
-
-    private static final String ACK_INSTRUCTIONS = "A missed call will be placed to the phone number you provided.";
+    private static final String ACK_INSTRUCTIONS = "Please place a call to this phone number. It will not be answered, just wait until the automatic hang up.";
 
     private String apiKey;
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
-        super.init(settings);
         apiKey = (String) settings.get("apikey");
     }
 
@@ -54,12 +51,18 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
         return ACK_INSTRUCTIONS;
     }
 
+    /** Not used. */
+    @Override
+    public String getSenderId() {
+        return null;
+    }
+
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        CheckmobiValidationClient client = CheckmobiValidationClient.reverseCallerID(apiKey);
+        CheckmobiValidationClient client = CheckmobiValidationClient.callerID(apiKey);
 
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Requesting CheckMobi verification for " + phoneNumber);
+            log.finest("Requesting CheckMobi caller ID for " + phoneNumber);
         }
         RequestResult result = client.request(phoneNumber);
         if (result != null) {
@@ -67,7 +70,7 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
                 if (log.isLoggable(Level.FINEST)) {
                     log.finest("Requested to CheckMobi: " + result.getId());
                 }
-                return new CheckmobiRequest(result.getId());
+                return new CheckmobiRequest(result.getId(), result.getDialingNumber());
             }
             else {
                 throw new IOException("verification did not start (" + result.getError() + ")");
@@ -78,23 +81,19 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
         }
     }
 
+    /** Parameters <code>proof</code> is ignored. */
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
-        if (proof == null || proof.length() == 0) {
-            return false;
-        }
+        CheckmobiValidationClient client = CheckmobiValidationClient.callerID(apiKey);
 
-        CheckmobiValidationClient client = CheckmobiValidationClient.reverseCallerID(apiKey);
-
-        // take the last N characters (dummy proof :)
-        String finalProof = proof.substring(Math.max(0, proof.length() - PROOF_LENGTH));
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Confirming to CheckMobi: " + request + ", proof: " + finalProof);
+            log.finest("Checking verification status from CheckMobi: " + request);
         }
+
         CheckmobiRequest myRequest = (CheckmobiRequest) request;
-        VerifyResult result = client.verify(myRequest.getId(), finalProof);
+        StatusResult result = client.status(myRequest.getId());
         if (result != null) {
-            if (result.getStatus() == VerifyResult.STATUS_SUCCESS) {
+            if (result.getStatus() == StatusResult.STATUS_SUCCESS) {
                 return result.isValidated();
             }
             else {
@@ -113,14 +112,16 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
 
     @Override
     public String getChallengeType() {
-        return CHALLENGE_MISSED_CALL;
+        return CHALLENGE_CALLER_ID;
     }
 
     private static final class CheckmobiRequest implements RegistrationRequest {
         private final String id;
+        private final String dialingNumber;
 
-        CheckmobiRequest(String id) {
+        CheckmobiRequest(String id, String dialingNumber) {
             this.id = id;
+            this.dialingNumber = dialingNumber;
         }
 
         public String getId() {
@@ -129,8 +130,7 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
 
         @Override
         public String getSenderId() {
-            // 4 unknown digits
-            return "+xx-xxxxxx????";
+            return dialingNumber;
         }
 
         @Override

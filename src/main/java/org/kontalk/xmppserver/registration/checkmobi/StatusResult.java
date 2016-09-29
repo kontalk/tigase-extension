@@ -19,29 +19,22 @@
 package org.kontalk.xmppserver.registration.checkmobi;
 
 
-public class RequestResult extends AbstractResult {
+public class StatusResult extends AbstractResult {
 
-    private final String id;
-    private final String dialingNumber;
+    private final boolean validated;
 
-    public RequestResult(String id, String dialingNumber) {
+    public StatusResult(boolean validated) {
         super(null);
-        this.id = id;
-        this.dialingNumber = dialingNumber;
+        this.validated = validated;
     }
 
-    public RequestResult(Exception error) {
+    public StatusResult(Exception error) {
         super(error);
-        this.id = null;
-        this.dialingNumber = null;
+        this.validated = false;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getDialingNumber() {
-        return dialingNumber;
+    public boolean isValidated() {
+        return validated;
     }
 
 }

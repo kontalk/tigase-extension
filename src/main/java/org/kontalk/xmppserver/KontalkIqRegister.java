@@ -274,7 +274,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             // get public key block from client certificate
                             byte[] publicKeyData = getPublicKey(session);
 
-                            if (!session.isAuthorized() && code != null) {
+                            if (!session.isAuthorized()) {
 
                                 // load public key
                                 PGPPublicKey key = loadPublicKey(publicKeyData);

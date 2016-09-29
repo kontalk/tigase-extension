@@ -92,6 +92,10 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
+        if (proof == null || proof.length() == 0) {
+            return false;
+        }
+
         NexmoVerifyClient client;
 
         try {

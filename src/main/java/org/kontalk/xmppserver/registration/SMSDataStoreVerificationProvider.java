@@ -95,6 +95,10 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof)
             throws IOException, TigaseDBException {
+        if (proof == null || proof.length() == 0) {
+            return false;
+        }
+
         SMSDataStoreRequest myRequest = (SMSDataStoreRequest) request;
         return verify(myRequest.getJid(), proof);
     }

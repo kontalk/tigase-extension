@@ -35,6 +35,8 @@ public interface PhoneNumberVerificationProvider {
     public static final String CHALLENGE_PIN = "pin";
     /** Challenge the user with a missed call from a random number and making the user guess the digits. */
     public static final String CHALLENGE_MISSED_CALL = "missedcall";
+    /** Challenge the user with the caller ID presented in a user-initiated call to a given phone number. */
+    public static final String CHALLENGE_CALLER_ID = "callerid";
 
     public void init(Map<String, Object> settings) throws TigaseDBException;
 

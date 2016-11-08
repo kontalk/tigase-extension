@@ -1,11 +1,8 @@
 package org.kontalk.xmppserver;
 
 import tigase.annotations.TODO;
-import tigase.db.NonAuthUserRepository;
-import tigase.server.Iq;
-import tigase.server.Message;
-import tigase.server.Packet;
-import tigase.server.Presence;
+import tigase.conf.ConfigurationException;
+import tigase.server.*;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.*;
@@ -22,32 +19,25 @@ import java.util.logging.Logger;
  * @author Daniele Ricci
  */
 @TODO(note = "support for cc and bcc")
-public class ExtendedAddressing extends XMPPProcessorAbstract {
+public class ExtendedAddressing extends AbstractMessageReceiver {
     private static Logger log = Logger.getLogger(ExtendedAddressing.class.getName());
 
-    private static final String XMLNS = "http://jabber.org/protocol/address";
-    public static final String ID = XMLNS;
+    private static final String NODE = "http://jabber.org/protocol/address";
+    private static final String DISCO_DESCRIPTION = "Multicast";
 
-    private static final String[] XMLNSS = {XMLNS, XMLNS, XMLNS};
-
+    private static final String XMLNS = NODE;
     private static final String ELEM_NAME = "addresses";
     private static final String CHILD_ELEM_NAME = "address";
 
-    private static final String[][] ELEMENTS = {
-            { Message.ELEM_NAME, ELEM_NAME },
-            { Presence.ELEM_NAME, ELEM_NAME },
-            { Iq.ELEM_NAME, ELEM_NAME },
-    };
-
-    private static final Element[] DISCO_FEATURES = new Element[] {
-        new Element("feature", new String[] { "var" },  new String[] { XMLNS })
+    private static final String[] ELEMENTS = {
+            Message.ELEM_NAME,
+            Presence.ELEM_NAME,
+            Iq.ELEM_NAME,
     };
 
     @Override
-    public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
-        if (session == null) {
-            return;
-        }
+    public void processPacket(Packet packet) {
+        packet.processedBy(getName());
 
         Element child = packet.getElement().getChild(ELEM_NAME, XMLNS);
         if (child != null) {
@@ -64,9 +54,7 @@ public class ExtendedAddressing extends XMPPProcessorAbstract {
                                 Packet fwd = packet.copyElementOnly();
                                 fwd.initVars(packet.getStanzaFrom(), to);
                                 stripAddresses(fwd);
-
-                                packet.processedBy(ID);
-                                results.offer(fwd);
+                                addOutPacket(fwd);
                             }
                             catch (TigaseStringprepException e) {
                                 log.log(Level.WARNING, "invalid JID: " + jid);
@@ -79,11 +67,6 @@ public class ExtendedAddressing extends XMPPProcessorAbstract {
         }
     }
 
-    @Override
-    public void processServerSessionPacket(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
-        // handle server packet in server session - possible use for relay?
-    }
-
     private void stripAddresses(Packet packet) {
         Element e = packet.getElement();
         Element child = e.getChild(ELEM_NAME, XMLNS);
@@ -93,23 +76,26 @@ public class ExtendedAddressing extends XMPPProcessorAbstract {
     }
 
     @Override
-    public String id() {
-        return ID;
+    public void setProperties(Map<String, Object> props) throws ConfigurationException {
+        super.setProperties(props);
+        updateServiceDiscoveryItem(getName(), null, getDiscoDescription(), false, NODE);
     }
 
     @Override
-    public String[][] supElementNamePaths() {
-        return ELEMENTS;
+    public Map<String, Object> getDefaults(Map<String, Object> params) {
+        Map<String, Object> defs = super.getDefaults(params);
+        defs.put("packet-types", ELEMENTS);
+        return defs;
     }
 
     @Override
-    public String[] supNamespaces() {
-        return XMLNSS;
+    public String getDiscoDescription() {
+        return DISCO_DESCRIPTION;
     }
 
     @Override
-    public Element[] supDiscoFeatures(XMPPResourceConnection session) {
-        return DISCO_FEATURES;
+    public String getDiscoCategoryType() {
+        return "generic";
     }
 
 }

@@ -37,7 +37,10 @@ import org.kontalk.xmppserver.registration.VerificationRepository;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
-import tigase.db.*;
+import tigase.db.NonAuthUserRepository;
+import tigase.db.TigaseDBException;
+import tigase.db.UserExistsException;
+import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
@@ -84,6 +87,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String FORM_FIELD_REVOKED = "revoked";
     private static final String FORM_FIELD_FORCE = "force";
     private static final String FORM_FIELD_FALLBACK = "fallback";
+    /** Form field to request a specific challenge type. */
+    private static final String FORM_FIELD_CHALLENGE = "challenge";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
             new String[]{"http://jabber.org/features/iq-register"})};
@@ -98,7 +103,11 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
 
-    private PhoneNumberVerificationProvider provider;
+    private Map<String, PhoneNumberVerificationProvider> providers;
+    // these two are actually references to instances stored in providers map above
+    // if default-provider and fallback-provider are not defined in config, the first and second provider will be used
+    // as default and fallback (if any)
+    private PhoneNumberVerificationProvider defaultProvider;
     private PhoneNumberVerificationProvider fallbackProvider;
 
     private long statsRegistrationAttempts;
@@ -117,42 +126,58 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     public void init(Map<String, Object> settings) throws TigaseDBException {
         requests = new HashMap<>();
 
-        // registration provider
-        String providerClassName = (String) settings.get("provider");
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends PhoneNumberVerificationProvider> providerClass =
-                    (Class<? extends PhoneNumberVerificationProvider>) Class.forName(providerClassName);
-            provider = providerClass.newInstance();
-            provider.init(settings);
-        }
-        catch (ClassNotFoundException e) {
-            throw new TigaseDBException("Provider class not found: " + providerClassName);
-        }
-        catch (InstantiationException e) {
-            throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
-        }
-        catch (IllegalAccessException e) {
-            throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
-        }
+        // registration providers
+        providers = new LinkedHashMap<>();
+        String[] providersList = (String[]) settings.get("providers");
+        if (providersList == null || providersList.length == 0)
+            throw new TigaseDBException("No providers configured");
 
-        String fallbackProviderClassName = (String) settings.get("fallback-provider");
-        if (fallbackProviderClassName != null) {
+        String defaultProviderName = (String) settings.get("default-provider");
+        String fallbackProviderName = (String) settings.get("fallback-provider");
+
+        for (String providerStr : providersList) {
+            String[] providerDef = providerStr.split("=");
+            if (providerDef.length != 2)
+                throw new TigaseDBException("Bad provider definition: " + providerStr);
+
+            String providerName = providerDef[0];
+            String providerClassName = providerDef[1];
+
             try {
                 @SuppressWarnings("unchecked")
                 Class<? extends PhoneNumberVerificationProvider> providerClass =
-                        (Class<? extends PhoneNumberVerificationProvider>) Class.forName(fallbackProviderClassName);
-                fallbackProvider = providerClass.newInstance();
-                fallbackProvider.init(getPrefixedSettings(settings, "fallback-"));
+                        (Class<? extends PhoneNumberVerificationProvider>) Class.forName(providerClassName);
+                PhoneNumberVerificationProvider provider = providerClass.newInstance();
+                provider.init(getPrefixedSettings(settings, providerName + "-"));
+                // init was successful
+                providers.put(providerName, provider);
+
+                if (defaultProviderName != null) {
+                    // this is the default provider
+                    if (defaultProviderName.equals(providerName))
+                        defaultProvider = provider;
+                }
+                else if (defaultProvider == null) {
+                    // no default provider defined, use the first one found
+                    defaultProvider = provider;
+                }
+
+                if (fallbackProviderName != null) {
+                    // this is the fallback provider
+                    if (fallbackProviderName.equals(providerName))
+                        fallbackProvider = provider;
+                }
+                else if (fallbackProvider == null && defaultProvider != null) {
+                    // no fallback provider defined and default provider already set
+                    // use the second provider found
+                    fallbackProvider = provider;
+                }
             }
             catch (ClassNotFoundException e) {
-                throw new TigaseDBException("Fallback provider class not found: " + fallbackProviderClassName);
+                throw new TigaseDBException("Provider class not found: " + providerClassName);
             }
-            catch (InstantiationException e) {
-                throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
-            }
-            catch (IllegalAccessException e) {
-                throw new TigaseDBException("Unable to create fallback provider instance for " + fallbackProviderClassName);
+            catch (InstantiationException | IllegalAccessException e) {
+                throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
             }
         }
 
@@ -184,7 +209,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 }
             }
         }, timeout, timeout);
-
     }
 
     private Map<String, Object> getPrefixedSettings(Map<String, Object> settings, String prefix) {
@@ -197,6 +221,22 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             }
         }
         return out;
+    }
+
+    private PhoneNumberVerificationProvider getChallengedProvider(String challenge) {
+        for (PhoneNumberVerificationProvider provider : providers.values()) {
+            if (provider.getChallengeType().equals(challenge))
+                return provider;
+        }
+        return null;
+    }
+
+    private PhoneNumberVerificationProvider getSupportedProvider(RegistrationRequest request) {
+        for (PhoneNumberVerificationProvider provider : providers.values()) {
+            if (provider.supportsRequest(request))
+                return provider;
+        }
+        return null;
     }
 
     @Override
@@ -260,8 +300,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 catch (NullPointerException e) {
                                     fallback = false;
                                 }
+                                String challenge;
+                                try {
+                                    challenge = form.getAsString(FORM_FIELD_CHALLENGE);
+                                }
+                                catch (NullPointerException e) {
+                                    challenge = null;
+                                }
 
-                                Packet response = registerPhone(session, packet, phone, force, fallback, results);
+                                Packet response = registerPhone(session, packet, phone, force, fallback, challenge, results);
                                 statsRegistrationAttempts++;
                                 packet.processedBy(ID);
                                 if (response != null)
@@ -405,7 +452,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         throw new PGPException("client certificate not found");
     }
 
-    private Packet registerPhone(XMPPResourceConnection session, Packet packet, String phoneInput, boolean force, boolean fallback, Queue<Packet> results)
+    private Packet registerPhone(XMPPResourceConnection session, Packet packet, String phoneInput, boolean force, boolean fallback, String challenge, Queue<Packet> results)
             throws PacketErrorTypeException, TigaseDBException, NoConnectionIdException {
         String phone;
         try {
@@ -430,6 +477,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             regInfo.phone = phone;
             regInfo.connectionId = session.getConnectionId();
             regInfo.fallback = fallback;
+            regInfo.challenge = challenge;
 
             String probeId = ProbeManager.getInstance().probe(jid, this, regInfo, results);
             if (probeId == null) {
@@ -450,14 +498,24 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             }
         }
         else {
-            return startVerification(session.getDomainAsJID().getDomain(), packet, jid, phone, fallback);
+            return startVerification(session.getDomainAsJID().getDomain(), packet, jid, phone, fallback, challenge);
         }
     }
 
-    private Packet startVerification(String domain, Packet packet, BareJID jid, String phone, boolean fallback)
+    private Packet startVerification(String domain, Packet packet, BareJID jid, String phone, boolean fallback, String challenge)
             throws TigaseDBException, PacketErrorTypeException {
-        return startVerification(domain, packet, jid, phone,
-                fallback && fallbackProvider != null ? fallbackProvider : provider);
+        PhoneNumberVerificationProvider provider = null;
+        if (challenge != null) {
+            // client request a specific challenge
+            provider = getChallengedProvider(challenge);
+        }
+        if (provider == null) {
+            // no provider with request challenge or no challenge requested
+            // fall back to default or fallback if requested
+            provider = fallback && fallbackProvider != null ? fallbackProvider : defaultProvider;
+        }
+
+        return startVerification(domain, packet, jid, phone, provider);
     }
 
     private Packet startVerification(String domain, Packet packet, BareJID jid, String phone, PhoneNumberVerificationProvider provider)
@@ -595,11 +653,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private boolean verifyCode(XMPPResourceConnection session, BareJID jid, String code) throws TigaseDBException, IOException {
         RegistrationRequest request = requests.get(jid);
-        PhoneNumberVerificationProvider prov = provider;
-        if (!prov.supportsRequest(request) && fallbackProvider != null && fallbackProvider.supportsRequest(request))
-            prov = fallbackProvider;
-
-        return request != null && prov.endVerification(session, request, code);
+        if (request == null) {
+            // request was lost or doesn't exist
+            return false;
+        }
+        PhoneNumberVerificationProvider prov = getSupportedProvider(request);
+        return prov != null && prov.endVerification(session, request, code);
     }
 
     private byte[] signPublicKey(XMPPResourceConnection session, byte[] publicKeyData) throws IOException, PGPException {
@@ -669,7 +728,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         else {
             SessionManager sm = (SessionManager) XMPPServer.getComponent("sess-man");
             try {
-                Packet result = startVerification(sm.getDefVHostItem().getDomain(), regInfo.packet, regInfo.jid, regInfo.phone, regInfo.fallback);
+                Packet result = startVerification(sm.getDefVHostItem().getDomain(), regInfo.packet, regInfo.jid, regInfo.phone, regInfo.fallback, regInfo.challenge);
                 if (result != null) {
                     result.setPacketTo(regInfo.connectionId);
                     results.offer(result);
@@ -689,5 +748,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         String phone;
         JID connectionId;
         boolean fallback;
+        String challenge;
     }
 }

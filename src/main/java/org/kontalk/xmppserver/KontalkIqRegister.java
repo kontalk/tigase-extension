@@ -431,12 +431,19 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         phone.setRequired(true);
         form.addField(phone);
 
-        Field force = Field.fieldTextSingle("force", null, "Force registration");
-        force.setRequired(false);
-        form.addField(force);
-
-        form.addField(Field.fieldBoolean("force", null, "Force registration"));
+        form.addField(Field.fieldTextSingle("force", null, "Force registration"));
         form.addField(Field.fieldBoolean("fallback", null, "Fallback"));
+        form.addField(Field.fieldListSingle("challenge", null, "Challenge type",
+            new String[] {
+                "Verification code",
+                "Missed call",
+                "Caller ID",
+            },
+            new String[] {
+                PhoneNumberVerificationProvider.CHALLENGE_PIN,
+                PhoneNumberVerificationProvider.CHALLENGE_MISSED_CALL,
+                PhoneNumberVerificationProvider.CHALLENGE_CALLER_ID,
+            }));
 
         query.addChild(form.getElement());
 

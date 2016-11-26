@@ -85,7 +85,7 @@ public class GnuPGInterface {
 
     public void importKey(byte[] keyData) throws IOException, PGPException {
         synchronized (this) {
-            if (invoke(keyData, "-q", "--yes", "--batch", "--import") != 0)
+            if (invoke(keyData, "-q", "--yes", "--batch", "--ignore-time-conflict", "--import") != 0)
                 throw new PGPException("error importing key");
         }
     }

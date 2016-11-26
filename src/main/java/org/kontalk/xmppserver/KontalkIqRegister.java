@@ -583,6 +583,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet register(XMPPResourceConnection session, Packet packet, BareJID jid, byte[] fingerprint, byte[] publicKey)
             throws TigaseDBException {
         try {
+            // delete old user first if it exists
+            // this will delete any personal information of the previous phone number owner
+            userRepository.removeUser(jid);
+        }
+        catch (TigaseDBException e) {
+            // user doesn't exist?
+            // don't really care...
+        }
+        try {
             userRepository.addUser(jid);
         }
         catch (UserExistsException e) {

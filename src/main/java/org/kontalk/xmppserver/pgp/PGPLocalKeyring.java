@@ -47,6 +47,7 @@ public class PGPLocalKeyring {
                 .buckets(100000)
                 .memoryMapSize(5, JedecByteUnit.MEGABYTES)
                 .buildAndOpen();
+        Runtime.getRuntime().addShutdownHook(new ShutdownThread());
     }
 
     /** Returns the public key represented by the given fingerprint. */
@@ -95,6 +96,23 @@ public class PGPLocalKeyring {
 
     private byte[] fingerprintKey(String s) {
         return DatatypeConverter.parseHexBinary(s);
+    }
+
+    private class ShutdownThread extends Thread {
+
+        ShutdownThread() {
+            super();
+            setName("PGPLocalKeyRingShutdownThread");
+        }
+
+        @Override
+        public void run() {
+            try {
+                db.close();
+            }
+            catch (Exception ignored) {
+            }
+        }
     }
 
 }

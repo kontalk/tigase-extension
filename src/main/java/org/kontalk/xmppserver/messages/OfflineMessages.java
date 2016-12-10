@@ -168,7 +168,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
     }
 
     private void waitForPresence(XMPPResourceConnection session, int millis) {
-        if (session.getPresence() == null || session.getPriority() < 0) {
+        if (session.getPresence() == null || session.getPriority() <= 0) {
             try {
                 Thread.sleep(millis);
             }
@@ -300,7 +300,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             }    // end of while (elem = elems.poll() != null)
             try {
                 if (pacs.size() > 1)
-                    Collections.sort( pacs, new StampComparator() );
+                    pacs.sort(new StampComparator());
             } catch ( NullPointerException e ) {
                 try {
                     log.warning( "Can not sort off line messages: " + pacs + ",\n" + e );
@@ -406,12 +406,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             Element stamp_el1 = p1.getElement().getChild( "delay", "urn:xmpp:delay" );
 
             if ( stamp_el1 == null ){
-
                 // XEP-0091 support - the old one...
                 stamp_el1 = p1.getElement().getChild( "x", "jabber:x:delay" );
-                if ( stamp_el1 != null ){
-                    stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
-                }
+            }
+            if ( stamp_el1 != null ){
+                stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
             }
             if (stamp1 == null) {
                 stamp1 = "";
@@ -421,12 +420,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             Element stamp_el2 = p2.getElement().getChild( "delay", "urn:xmpp:delay" );
 
             if ( stamp_el2 == null ){
-
                 // XEP-0091 support - the old one...
                 stamp_el2 = p2.getElement().getChild( "x", "jabber:x:delay" );
-                if ( stamp_el2 != null ){
-                    stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
-                }
+            }
+            if ( stamp_el2 != null ){
+                stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
             }
             if (stamp2 == null) {
                 stamp2 = "";

@@ -158,7 +158,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                     if ( log.isLoggable( Level.FINER ) ){
                         log.finer( "Sending offline messages: " + packets.size() );
                     }
-                    waitForPresence(session, 100);
+                    waitForPresence(session, 250);
                     results.addAll( packets );
                 }
             } catch ( TigaseDBException e ) {

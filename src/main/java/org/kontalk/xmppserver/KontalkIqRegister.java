@@ -45,12 +45,18 @@ import tigase.form.Field;
 import tigase.form.Form;
 import tigase.server.Iq;
 import tigase.server.Packet;
+import tigase.server.Presence;
 import tigase.server.XMPPServer;
 import tigase.server.xmppsession.SessionManager;
+import tigase.server.xmppsession.SessionManagerHandler;
 import tigase.stats.StatisticsList;
 import tigase.util.Base64;
+import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.*;
+import tigase.xmpp.impl.PresenceSubscription;
+import tigase.xmpp.impl.roster.RosterAbstract;
+import tigase.xmpp.impl.roster.RosterFlat;
 
 import java.io.IOException;
 import java.security.cert.Certificate;
@@ -102,6 +108,39 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
+
+    private static final RosterFlat rosterUtil = new RosterFlat();
+    private static final SessionManagerHandler loginHandler = new SessionManagerHandler() {
+        @Override
+        public JID getComponentId() {
+            return null;
+        }
+
+        @Override
+        public void handleLogin(BareJID userId, XMPPResourceConnection conn) {
+        }
+
+        @Override
+        public void handleDomainChange(String domain, XMPPResourceConnection conn) {
+        }
+
+        @Override
+        public void handleLogout(BareJID userId, XMPPResourceConnection conn) {
+        }
+
+        @Override
+        public void handlePresenceSet(XMPPResourceConnection conn) {
+        }
+
+        @Override
+        public void handleResourceBind(XMPPResourceConnection conn) {
+        }
+
+        @Override
+        public boolean isLocalDomain(String domain, boolean includeComponents) {
+            return false;
+        }
+    };
 
     private Map<String, PhoneNumberVerificationProvider> providers;
     // these two are actually references to instances stored in providers map above
@@ -198,10 +237,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     // TODO seconds should be in configuration
                     List<BareJID> users = userRepository.getExpiredUsers(DEF_EXPIRE_SECONDS);
                     for (BareJID user : users) {
-                        if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINE, "Deleting user {0}", user);
-                        }
-                        userRepository.removeUser(user);
+                        removeUser(user);
                     }
                 }
                 catch (TigaseDBException e) {
@@ -237,6 +273,53 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 return provider;
         }
         return null;
+    }
+
+    private void removeUser(BareJID jid) throws TigaseDBException {
+        if (log.isLoggable(Level.FINE)) {
+            log.log(Level.FINE, "Deleting user {0}", jid);
+        }
+        try {
+            // send unsubscribed to all contacts
+            unsubscribeFromRoster(jid);
+        }
+        catch (NotAuthorizedException e) {
+            log.log(Level.WARNING, "unable to unsubscribe from roster of " + jid, e);
+        }
+        userRepository.removeUser(jid);
+    }
+
+    /** Sends an unsubscribed stanza to all user in the given user's roster. */
+    private void unsubscribeFromRoster(BareJID jid) throws NotAuthorizedException, TigaseDBException {
+        // prepare session object for retrieving the roster
+        XMPPSession parentSession = new XMPPSession(jid.getLocalpart());
+        XMPPResourceConnection session = new XMPPResourceConnection(JID
+                .jidInstanceNS(jid, "internal"), userRepository, userRepository, loginHandler);
+        SessionManager sessMan = (SessionManager) XMPPServer.getComponent("sess-man");
+        try {
+            session.setDomain(sessMan.getVHostItem(jid.getDomain()));
+            session.setParentSession(parentSession);
+            session.authorizeJID(jid, false);
+        }
+        catch (TigaseStringprepException e) {
+            throw new TigaseDBException("Unable to authorize session", e);
+        }
+
+        JID[] buddies = rosterUtil.getBuddies(session, RosterAbstract.FROM_SUBSCRIBED);
+        if (buddies != null && buddies.length > 0) {
+            // we are not in a processing queue so we need direct access to the SessionManager
+            for (JID user : buddies) {
+                try {
+                    Packet packet = Packet.packetInstance(Presence.ELEM_NAME,
+                            jid.toString(), user.getBareJID().toString(), StanzaType.unsubscribed);
+                    packet.setXMLNS(PresenceSubscription.CLIENT_XMLNS);
+                    sessMan.addOutPacket(packet);
+                }
+                catch (TigaseStringprepException e) {
+                    log.log(Level.WARNING, "Unable to create unsubscription packet", e);
+                }
+            }
+        }
     }
 
     @Override
@@ -585,7 +668,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         try {
             // delete old user first if it exists
             // this will delete any personal information of the previous phone number owner
-            userRepository.removeUser(jid);
+            removeUser(jid);
         }
         catch (TigaseDBException e) {
             // user doesn't exist?

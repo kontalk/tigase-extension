@@ -44,7 +44,7 @@ public class BlockingCommand extends XMPPProcessorAbstract implements
     private static Logger log = Logger.getLogger(BlockingCommand.class.getName());
 
     private static final String XMLNS = "urn:xmpp:blocking";
-    public static final String ID = XMLNS;
+    public static final String ID = "kontalk:" + XMLNS;
 
     private static final String[] XMLNSS = {XMLNS, XMLNS, XMLNS};
 

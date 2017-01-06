@@ -40,7 +40,7 @@ import java.util.logging.Logger;
 public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc, XMPPStopListenerIfc {
     private static Logger log = Logger.getLogger(ClientStateIndication.class.getName());
 
-    private static final String XMLNS = "urn:xmpp:csi:0";
+    static final String XMLNS = "urn:xmpp:csi:0";
     public static final String ID = "kontalk:" + XMLNS;
 
     /** Max size of the packet queue. After reaching this point, data will be sent out to the client. */
@@ -49,8 +49,8 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     private static final String[] XMLNSS = {XMLNS, XMLNS};
 
-    private static final String ELEM_ACTIVE = "active";
-    private static final String ELEM_INACTIVE = "inactive";
+    static final String ELEM_ACTIVE = "active";
+    static final String ELEM_INACTIVE = "inactive";
 
     private static final String[][] ELEMENTS = {
             { ELEM_ACTIVE },
@@ -61,7 +61,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     private static final String CHATSTATE_XMLNS = "http://jabber.org/protocol/chatstates";
 
-    private static final String SESSION_QUEUE = ID + ":queue";
+    static final String SESSION_QUEUE = ID + ":queue";
 
     @Override
     public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
@@ -302,7 +302,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     }
 
     /** A typedef for the internal stanza queue for CSI. */
-    private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
+    static final class InternalQueue extends LinkedHashMap<JID, Presence> {
         private static final DateFormat formatter;
         static {
             formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");

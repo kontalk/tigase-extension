@@ -18,9 +18,11 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -37,6 +39,11 @@ public class DummyProvider extends SMSDataStoreVerificationProvider {
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(log, settings);
+    }
+
+    @Override
+    protected VerificationRepository createVerificationRepository(String dbUri, int timeout) throws ClassNotFoundException, DBInitException, InstantiationException, SQLException, IllegalAccessException {
+        return new DummyVerificationRepository(senderId);
     }
 
     @Override

@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver.registration;
 
 import org.kontalk.xmppserver.auth.KontalkAuth;
+import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.XMPPResourceConnection;
@@ -54,7 +55,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         Object _timeout = settings.get("expire");
         int timeout = (_timeout != null) ? (Integer) _timeout : 0;
         try {
-            repo = new DataVerificationRepository(dbUri, timeout);
+            repo = createVerificationRepository(dbUri, timeout);
         }
         catch (ClassNotFoundException e) {
             throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
@@ -75,6 +76,11 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
             // setup looping task for verification codes expiration
             timer.scheduleAtFixedRate(new PurgeTask(log, repo), EXPIRED_TIMEOUT, EXPIRED_TIMEOUT);
         }
+    }
+
+    protected VerificationRepository createVerificationRepository(String dbUri, int timeout)
+            throws ClassNotFoundException, DBInitException, InstantiationException, SQLException, IllegalAccessException {
+        return new DataVerificationRepository(dbUri, timeout);
     }
 
     @Override

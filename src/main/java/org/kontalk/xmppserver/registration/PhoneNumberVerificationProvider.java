@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -63,6 +63,17 @@ public interface PhoneNumberVerificationProvider {
     /** Returns true if this provider supports this kind if registration request. */
     public boolean supportsRequest(RegistrationRequest request);
 
+    /** The challenge type implemented by this provider. */
     public String getChallengeType();
+
+    /** The brand image logo for this provider, if any. */
+    public default String getBrandImage() {
+        return null;
+    }
+
+    /** The brand link the image logo will point to, if any. */
+    public default String getBrandLink() {
+        return null;
+    }
 
 }

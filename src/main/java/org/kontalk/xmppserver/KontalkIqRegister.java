@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -658,6 +658,16 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
         form.addField(Field.fieldTextSingle("from", from, "Sender ID"));
         form.addField(Field.fieldTextSingle("challenge", provider.getChallengeType(), "Challenge type"));
+
+        String brandImage = provider.getBrandImage();
+        if (brandImage != null) {
+            form.addField(Field.fieldTextSingle("brand-image", brandImage, "Brand logo"));
+
+            String brandLink = provider.getBrandLink();
+            if (brandLink != null) {
+                form.addField(Field.fieldTextSingle("brand-link", brandLink, "Brand link"));
+            }
+        }
 
         query.addChild(form.getElement());
         return query;

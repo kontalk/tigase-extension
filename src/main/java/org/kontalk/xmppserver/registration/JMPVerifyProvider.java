@@ -18,21 +18,36 @@
 
 package org.kontalk.xmppserver.registration;
 
+import org.kontalk.xmppserver.registration.jmp.CheckResult;
+import org.kontalk.xmppserver.registration.jmp.JmpVerifyClient;
+import org.kontalk.xmppserver.registration.jmp.VerifyResult;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
 import java.io.IOException;
+import java.util.Map;
 
 
 /**
  * Verification provider for JMP verification service.
- * TODO actual implementation
  * @see <a href="https://jmp.chat/">JMP - JIDs for Messaging with Phones</a>
  * @author Daniele Ricci
  */
 public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
+
+    private String username;
+    private String password;
+    private String brand;
+
+    @Override
+    public void init(Map<String, Object> settings) throws TigaseDBException {
+        super.init(settings);
+        username = (String) settings.get("username");
+        password = (String) settings.get("password");
+        brand = (String) settings.get("brand");
+    }
 
     @Override
     public String getAckInstructions() {
@@ -41,27 +56,91 @@ public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
 
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        // TODO
-        return new RegistrationRequest() {
-            @Override
-            public String getSenderId() {
-                return "+00TODO";
+        JmpVerifyClient client;
+
+        client = new JmpVerifyClient(username, password);
+
+        VerifyResult result;
+
+        try {
+            result = client.verify(phoneNumber, brand, senderId, VerificationRepository.VERIFICATION_CODE_LENGTH, null);
+        }
+        catch (IOException e) {
+            throw new IOException("Error requesting verification", e);
+        }
+
+        if (result != null) {
+            if (result.getStatus() == VerifyResult.STATUS_OK) {
+                return new JMPVerifyRequest(result.getRequestId());
             }
-        };
+            else {
+                throw new IOException("verification did not start (" + result.getErrorText() + ")");
+            }
+        }
+        else {
+            throw new IOException("Unknown response");
+        }
     }
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
-        return false;
+        if (proof == null || proof.length() == 0) {
+            return false;
+        }
+
+        JmpVerifyClient client;
+
+        client = new JmpVerifyClient(username, password);
+
+        CheckResult result;
+
+        try {
+            JMPVerifyRequest myRequest = (JMPVerifyRequest) request;
+            result = client.check(myRequest.getId(), proof);
+        }
+        catch (IOException e) {
+            throw new IOException("Error requesting verification", e);
+        }
+
+        if (result != null) {
+            if (result.getStatus() == CheckResult.STATUS_OK) {
+                return true;
+            }
+            else if (result.getStatus() == CheckResult.STATUS_INVALID_CODE) {
+                return false;
+            }
+            else {
+                throw new IOException("verification did not start (" + result.getErrorText() + ")");
+            }
+        }
+        else {
+            throw new IOException("Unknown response");
+        }
     }
 
     @Override
     public boolean supportsRequest(RegistrationRequest request) {
-        return false;
+        return request instanceof JMPVerifyRequest;
     }
 
     @Override
     public String getChallengeType() {
         return CHALLENGE_PIN;
+    }
+
+    private static final class JMPVerifyRequest implements RegistrationRequest {
+        private final String id;
+        public JMPVerifyRequest(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String getSenderId() {
+            return null;
+        }
+
+        public String getId() {
+            return id;
+        }
     }
 }

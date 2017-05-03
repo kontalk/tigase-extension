@@ -27,7 +27,6 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.util.Locale;
 
@@ -58,13 +57,14 @@ public class JmpVerifyClient {
     private final String apiKey;
     private final String apiSecret;
 
+    // TODO these two are not used yet
     private final int connectionTimeout;
     private final int soTimeout;
 
     private JmpVerifyService service;
 
     public JmpVerifyClient(final String apiKey,
-                           final String apiSecret) throws ParserConfigurationException {
+                           final String apiSecret) {
         this(DEFAULT_BASE_URL,
                 apiKey,
                 apiSecret,
@@ -73,12 +73,11 @@ public class JmpVerifyClient {
     }
 
     /**
-     * Instanciate a new NexmoVerifyClient instance that will communicate using the supplied credentials, and will use the supplied connection and read timeout values.<br>
-     * Additionally, you can specify an alternative service base url. For example submitting to a testing sandbox environment,
-     * or if requested to submit to an alternative address by Nexmo, for example, in cases where it may be necessary to prioritize your traffic.
+     * Instanciate a new JmpVerifyClient instance that will communicate using the supplied credentials, and will use the supplied connection and read timeout values.<br>
+     * Additionally, you can specify an alternative service base url.
      *
-     * @param apiKey Your Nexmo account api key
-     * @param apiSecret Your Nexmo account api secret
+     * @param apiKey Your JMP account api key
+     * @param apiSecret Your JMP account api secret
      * @param connectionTimeout over-ride the default connection timeout with this value (in milliseconds)
      * @param soTimeout over-ride the default read-timeout with this value (in milliseconds)
      */
@@ -86,7 +85,7 @@ public class JmpVerifyClient {
                            final String apiKey,
                            final String apiSecret,
                            final int connectionTimeout,
-                           final int soTimeout) throws ParserConfigurationException {
+                           final int soTimeout) {
 
         // Derive a http and a https version of the supplied base url
         if (baseUrl == null)

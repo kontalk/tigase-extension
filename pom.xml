@@ -45,15 +45,16 @@
   </build>
   <dependencies>
     <dependency>
-      <groupId>com.googlecode.libphonenumber</groupId>
-      <artifactId>libphonenumber</artifactId>
-      <version>8.2.0</version>
-    </dependency>
-    <dependency>
       <groupId>org.kontalk</groupId>
       <artifactId>tigase-server</artifactId>
-      <version>7.1.0</version>
+      <version>7.1.1-SNAPSHOT</version>
       <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.googlecode.libphonenumber</groupId>
+      <artifactId>libphonenumber</artifactId>
+      <version>8.4.3</version>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
@@ -133,10 +134,11 @@
       <version>2.4.7</version>
       <scope>compile</scope>
     </dependency>
+
     <dependency>
       <groupId>org.kontalk</groupId>
       <artifactId>tigase-server</artifactId>
-      <version>7.1.0</version>
+      <version>7.1.1-SNAPSHOT</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>

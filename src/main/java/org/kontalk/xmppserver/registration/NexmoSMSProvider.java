@@ -18,9 +18,10 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.messaging.sdk.NexmoSmsClient;
-import com.nexmo.messaging.sdk.SmsSubmissionResult;
-import com.nexmo.messaging.sdk.messages.TextMessage;
+import com.nexmo.client.NexmoClient;
+import com.nexmo.client.auth.TokenAuthMethod;
+import com.nexmo.client.sms.SmsSubmissionResult;
+import com.nexmo.client.sms.messages.TextMessage;
 import tigase.db.TigaseDBException;
 
 import java.io.IOException;
@@ -54,19 +55,13 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     @Override
     protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
-        NexmoSmsClient client;
-        try {
-            client = new NexmoSmsClient(username, password);
-        }
-        catch (Exception e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
+        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
 
         TextMessage msg = new TextMessage(senderId, phoneNumber, code);
 
         SmsSubmissionResult[] results;
         try {
-            results = client.submitMessage(msg);
+            results = client.getSmsClient().submitMessage(msg);
         }
         catch (Exception e) {
             throw new IOException("Error sending SMS", e);

@@ -18,14 +18,14 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.verify.sdk.CheckResult;
-import com.nexmo.verify.sdk.NexmoVerifyClient;
-import com.nexmo.verify.sdk.VerifyResult;
-import org.xml.sax.SAXException;
+import com.nexmo.client.NexmoClient;
+import com.nexmo.client.NexmoClientException;
+import com.nexmo.client.auth.TokenAuthMethod;
+import com.nexmo.client.verify.CheckResult;
+import com.nexmo.client.verify.VerifyResult;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -59,21 +59,15 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        NexmoVerifyClient client;
-
-        try {
-            client = new NexmoVerifyClient(username, password);
-        }
-        catch (ParserConfigurationException e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
+        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
 
         VerifyResult result;
 
         try {
-            result = client.verify(phoneNumber, brand, senderId, VerificationRepository.VERIFICATION_CODE_LENGTH, null);
+            result = client.getVerifyClient().verify(phoneNumber, brand, senderId,
+                    VerificationRepository.VERIFICATION_CODE_LENGTH, null);
         }
-        catch (SAXException e) {
+        catch (NexmoClientException e) {
             throw new IOException("Error requesting verification", e);
         }
 
@@ -96,22 +90,15 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
             return false;
         }
 
-        NexmoVerifyClient client;
-
-        try {
-            client = new NexmoVerifyClient(username, password);
-        }
-        catch (ParserConfigurationException e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
+        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
 
         CheckResult result;
 
         try {
             NexmoVerifyRequest myRequest = (NexmoVerifyRequest) request;
-            result = client.check(myRequest.getId(), proof);
+            result = client.getVerifyClient().check(myRequest.getId(), proof);
         }
-        catch (SAXException e) {
+        catch (NexmoClientException e) {
             throw new IOException("Error requesting verification", e);
         }
 

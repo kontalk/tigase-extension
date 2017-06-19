@@ -677,7 +677,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
             String brandImageHighDef = provider.getBrandImageHighDef();
             if (brandImageHighDef != null)
-                form.addField(Field.fieldTextSingle("brand-image-highdef", brandImageHighDef, "Brand logo (HD)"));
+                form.addField(Field.fieldTextSingle("brand-image-hd", brandImageHighDef, "Brand logo (HD)"));
 
             String brandLink = provider.getBrandLink();
             if (brandLink != null) {

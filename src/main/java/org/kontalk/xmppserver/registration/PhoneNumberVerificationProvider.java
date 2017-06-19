@@ -66,8 +66,28 @@ public interface PhoneNumberVerificationProvider {
     /** The challenge type implemented by this provider. */
     public String getChallengeType();
 
-    /** The brand image logo for this provider, if any. */
-    public default String getBrandImage() {
+    /** The brand vector image logo for this provider, if any. */
+    public default String getBrandImageVector() {
+        return null;
+    }
+
+    /** The brand small image logo for this provider, if any. */
+    public default String getBrandImageSmall() {
+        return null;
+    }
+
+    /** The brand medium image logo for this provider, if any. */
+    public default String getBrandImageMedium() {
+        return null;
+    }
+
+    /** The brand large image logo for this provider, if any. */
+    public default String getBrandImageLarge() {
+        return null;
+    }
+
+    /** The brand HD image logo for this provider, if any. */
+    public default String getBrandImageHighDef() {
         return null;
     }
 

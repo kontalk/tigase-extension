@@ -659,9 +659,25 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         form.addField(Field.fieldTextSingle("from", from, "Sender ID"));
         form.addField(Field.fieldTextSingle("challenge", provider.getChallengeType(), "Challenge type"));
 
-        String brandImage = provider.getBrandImage();
-        if (brandImage != null) {
-            form.addField(Field.fieldTextSingle("brand-image", brandImage, "Brand logo"));
+        String brandImageVector = provider.getBrandImageVector();
+        if (brandImageVector != null) {
+            form.addField(Field.fieldTextSingle("brand-image-vector", brandImageVector, "Brand logo (vector)"));
+
+            String brandImageSmall = provider.getBrandImageSmall();
+            if (brandImageSmall != null)
+                form.addField(Field.fieldTextSingle("brand-image-small", brandImageSmall, "Brand logo (small)"));
+
+            String brandImageMedium = provider.getBrandImageMedium();
+            if (brandImageMedium != null)
+                form.addField(Field.fieldTextSingle("brand-image-medium", brandImageMedium, "Brand logo (medium)"));
+
+            String brandImageLarge = provider.getBrandImageLarge();
+            if (brandImageLarge != null)
+                form.addField(Field.fieldTextSingle("brand-image-large", brandImageLarge, "Brand logo (large)"));
+
+            String brandImageHighDef = provider.getBrandImageHighDef();
+            if (brandImageHighDef != null)
+                form.addField(Field.fieldTextSingle("brand-image-highdef", brandImageHighDef, "Brand logo (HD)"));
 
             String brandLink = provider.getBrandLink();
             if (brandLink != null) {

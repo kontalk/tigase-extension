@@ -28,19 +28,47 @@ import java.util.Map;
  */
 public abstract class BrandedSMSVerificationProvider extends AbstractSMSVerificationProvider {
 
-    protected String brandImage;
+    protected String brandImageVector;
+    protected String brandImageSmall;
+    protected String brandImageMedium;
+    protected String brandImageLarge;
+    protected String brandImageHighDef;
     protected String brandLink;
 
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
-        brandImage = (String) settings.get("brand-image");
+        brandImageVector = (String) settings.get("brand-image-vector");
+        brandImageSmall = (String) settings.get("brand-image-small");
+        brandImageMedium = (String) settings.get("brand-image-medium");
+        brandImageLarge = (String) settings.get("brand-image-large");
+        brandImageHighDef = (String) settings.get("brand-image-hd");
         brandLink = (String) settings.get("brand-link");
     }
 
     @Override
-    public String getBrandImage() {
-        return brandImage;
+    public String getBrandImageVector() {
+        return brandImageVector;
+    }
+
+    @Override
+    public String getBrandImageSmall() {
+        return brandImageSmall;
+    }
+
+    @Override
+    public String getBrandImageMedium() {
+        return brandImageMedium;
+    }
+
+    @Override
+    public String getBrandImageLarge() {
+        return brandImageLarge;
+    }
+
+    @Override
+    public String getBrandImageHighDef() {
+        return brandImageHighDef;
     }
 
     @Override

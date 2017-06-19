@@ -63,6 +63,10 @@ public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
         VerifyResult result;
 
         try {
+            // remove plus
+            if (phoneNumber.charAt(0) == '+')
+                phoneNumber = phoneNumber.substring(1);
+
             result = client.verify(phoneNumber, brand, senderId, VerificationRepository.VERIFICATION_CODE_LENGTH, null);
         }
         catch (IOException e) {

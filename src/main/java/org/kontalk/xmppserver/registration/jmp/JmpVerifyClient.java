@@ -21,13 +21,16 @@ package org.kontalk.xmppserver.registration.jmp;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import okhttp3.ResponseBody;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import retrofit2.Converter;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.util.Locale;
 
 
@@ -61,7 +64,8 @@ public class JmpVerifyClient {
     private final int connectionTimeout;
     private final int soTimeout;
 
-    private JmpVerifyService service;
+    private final Retrofit retrofit;
+    private final JmpVerifyService service;
 
     public JmpVerifyClient(final String apiKey,
                            final String apiSecret) {
@@ -100,7 +104,8 @@ public class JmpVerifyClient {
         this.apiSecret = apiSecret;
         this.connectionTimeout = connectionTimeout;
         this.soTimeout = soTimeout;
-        this.service = buildService();
+        this.retrofit = buildRetrofit();
+        this.service = buildService(this.retrofit);
     }
 
     public VerifyResult verify(String number, String brand) throws IOException {
@@ -119,8 +124,14 @@ public class JmpVerifyClient {
             throw new IllegalArgumentException("code length must be 4 or 6.");
 
         Response<VerifyResult> response = service.verify(apiKey, apiSecret, number, brand).execute();
+        ResponseBody error;
         if (response.isSuccessful()) {
             return response.body();
+        }
+        else if ((error = response.errorBody()) != null) {
+            Converter<ResponseBody, VerifyResult> converter =
+                retrofit.responseBodyConverter(VerifyResult.class, new Annotation[0]);
+            return converter.convert(error);
         }
         else {
             return new VerifyResult(BaseResult.STATUS_COMMS_FAILURE, null, "Communication error");
@@ -132,24 +143,33 @@ public class JmpVerifyClient {
             throw new IllegalArgumentException("request ID and code parameters are mandatory.");
 
         Response<CheckResult> response = service.check(apiKey, apiSecret, requestId, code).execute();
+        ResponseBody error;
         if (response.isSuccessful()) {
             return response.body();
+        }
+        else if ((error = response.errorBody()) != null) {
+            Converter<ResponseBody, CheckResult> converter =
+                    retrofit.responseBodyConverter(CheckResult.class, new Annotation[0]);
+            return converter.convert(error);
         }
         else {
             return new CheckResult(BaseResult.STATUS_COMMS_FAILURE, null, "Communication error");
         }
     }
 
-    private JmpVerifyService buildService() {
+    private Retrofit buildRetrofit() {
         Gson gson = new GsonBuilder()
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
                 .create();
 
         return new Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-            .create(JmpVerifyService.class);
+                .baseUrl(baseUrl)
+                .addConverterFactory(GsonConverterFactory.create(gson))
+                .build();
+    }
+
+    private JmpVerifyService buildService(Retrofit retrofit) {
+        return retrofit.create(JmpVerifyService.class);
     }
 
 }

@@ -77,6 +77,9 @@ public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
             if (result.getStatus() == VerifyResult.STATUS_OK) {
                 return new JMPVerifyRequest(result.getRequestId());
             }
+            else if (result.getStatus() == VerifyResult.STATUS_CONCURRENT_REQUEST) {
+                throw new VerificationRepository.AlreadyRegisteredException();
+            }
             else {
                 throw new IOException("verification did not start (" + result.getErrorText() + ")");
             }

@@ -43,6 +43,11 @@ public abstract class BaseResult {
     public static final int STATUS_INTERNAL_ERROR = 2;
 
     /**
+     * Concurrent verification to the same number within a short time
+     */
+    public static final int STATUS_CONCURRENT_REQUEST = 10;
+
+    /**
      * The code inserted does not match the expected value
      */
     public static final int STATUS_INVALID_CODE = 16;

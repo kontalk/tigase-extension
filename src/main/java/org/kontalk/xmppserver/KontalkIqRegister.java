@@ -627,8 +627,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             if (senderId == null)
                 senderId = provider.getSenderId();
 
-            // enable going to fallback only if we are not already falling back
-            return packet.okResult(prepareSMSResponseForm(senderId, provider, provider!=fallbackProvider), 0);
+            // enable going to fallback only if we are not already falling back (and we have a fallback provider)
+            return packet.okResult(prepareSMSResponseForm(senderId, provider,
+                    fallbackProvider != null && provider != fallbackProvider), 0);
         }
         catch (IOException e) {
             // some kind of error

@@ -627,7 +627,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             if (senderId == null)
                 senderId = provider.getSenderId();
 
-            return packet.okResult(prepareSMSResponseForm(senderId, provider), 0);
+            // enable going to fallback only if we are not already falling back
+            return packet.okResult(prepareSMSResponseForm(senderId, provider, provider!=fallbackProvider), 0);
         }
         catch (IOException e) {
             // some kind of error
@@ -654,7 +655,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
     }
 
-    private Element prepareSMSResponseForm(String from, PhoneNumberVerificationProvider provider) {
+    private Element prepareSMSResponseForm(String from, PhoneNumberVerificationProvider provider, boolean canFallback) {
         Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
         query.addChild(new Element("instructions", provider.getAckInstructions()));
         Form form = new Form("form", null, null);
@@ -662,6 +663,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
         form.addField(Field.fieldTextSingle("from", from, "Sender ID"));
         form.addField(Field.fieldTextSingle("challenge", provider.getChallengeType(), "Challenge type"));
+
+        if (canFallback)
+            form.addField(Field.fieldBoolean("can-fallback", true, "Whether client can fallback to another method or not"));
 
         String brandImageVector = provider.getBrandImageVector();
         if (brandImageVector != null) {

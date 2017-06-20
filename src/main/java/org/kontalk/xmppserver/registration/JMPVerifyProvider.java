@@ -21,6 +21,7 @@ package org.kontalk.xmppserver.registration;
 import org.kontalk.xmppserver.registration.jmp.CheckResult;
 import org.kontalk.xmppserver.registration.jmp.JmpVerifyClient;
 import org.kontalk.xmppserver.registration.jmp.VerifyResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -42,7 +43,7 @@ public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
     private String brand;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
         username = (String) settings.get("username");
         password = (String) settings.get("password");

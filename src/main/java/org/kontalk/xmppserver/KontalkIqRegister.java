@@ -37,6 +37,7 @@ import org.kontalk.xmppserver.registration.VerificationRepository;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
+import tigase.conf.ConfigurationException;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserExistsException;
@@ -217,6 +218,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             }
             catch (InstantiationException | IllegalAccessException e) {
                 throw new TigaseDBException("Unable to create provider instance for " + providerClassName);
+            }
+            catch (ConfigurationException e) {
+                throw new TigaseDBException("configuration error", e);
             }
         }
 

@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.conf.ConfigurationException;
 import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 
@@ -37,7 +38,7 @@ public class DummyProvider extends SMSDataStoreVerificationProvider {
     private static Logger log = Logger.getLogger(DummyProvider.class.getName());
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(log, settings);
     }
 

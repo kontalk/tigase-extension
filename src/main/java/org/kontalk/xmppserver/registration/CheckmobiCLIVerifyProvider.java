@@ -21,6 +21,7 @@ package org.kontalk.xmppserver.registration;
 import org.kontalk.xmppserver.registration.checkmobi.CheckmobiValidationClient;
 import org.kontalk.xmppserver.registration.checkmobi.RequestResult;
 import org.kontalk.xmppserver.registration.checkmobi.StatusResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -42,7 +43,7 @@ public class CheckmobiCLIVerifyProvider implements PhoneNumberVerificationProvid
     private String apiKey;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         apiKey = (String) settings.get("apikey");
     }
 

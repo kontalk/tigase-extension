@@ -22,7 +22,9 @@ import com.nexmo.client.NexmoClient;
 import com.nexmo.client.NexmoClientException;
 import com.nexmo.client.auth.TokenAuthMethod;
 import com.nexmo.client.verify.CheckResult;
+import com.nexmo.client.verify.VerifyClient;
 import com.nexmo.client.verify.VerifyResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -40,16 +42,22 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
-    private String username;
-    private String password;
     private String brand;
 
+    private VerifyClient verifyClient;
+
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
-        username = (String) settings.get("username");
-        password = (String) settings.get("password");
         brand = (String) settings.get("brand");
+
+        String username = (String) settings.get("username");
+        String password = (String) settings.get("password");
+        if (username == null || password == null)
+            throw new ConfigurationException("username and password are mandatory");
+
+        final NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
+        verifyClient = client.getVerifyClient();
     }
 
     @Override
@@ -59,12 +67,10 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
-
         VerifyResult result;
 
         try {
-            result = client.getVerifyClient().verify(phoneNumber, brand, senderId,
+            result = verifyClient.verify(phoneNumber, brand, senderId,
                     VerificationRepository.VERIFICATION_CODE_LENGTH, null);
         }
         catch (NexmoClientException e) {
@@ -90,13 +96,11 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
             return false;
         }
 
-        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
-
         CheckResult result;
 
         try {
             NexmoVerifyRequest myRequest = (NexmoVerifyRequest) request;
-            result = client.getVerifyClient().check(myRequest.getId(), proof);
+            result = verifyClient.check(myRequest.getId(), proof);
         }
         catch (NexmoClientException e) {
             throw new IOException("Error requesting verification", e);

@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 
 import java.util.Map;
@@ -36,7 +37,7 @@ public abstract class BrandedSMSVerificationProvider extends AbstractSMSVerifica
     protected String brandLink;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
         brandImageVector = (String) settings.get("brand-image-vector");
         brandImageSmall = (String) settings.get("brand-image-small");

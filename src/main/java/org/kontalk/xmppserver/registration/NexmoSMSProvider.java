@@ -20,8 +20,10 @@ package org.kontalk.xmppserver.registration;
 
 import com.nexmo.client.NexmoClient;
 import com.nexmo.client.auth.TokenAuthMethod;
+import com.nexmo.client.sms.SmsClient;
 import com.nexmo.client.sms.SmsSubmissionResult;
 import com.nexmo.client.sms.messages.TextMessage;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 
 import java.io.IOException;
@@ -38,14 +40,19 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
-    private String username;
-    private String password;
+    private SmsClient smsClient;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(log, settings);
-        username = (String) settings.get("username");
-        password = (String) settings.get("password");
+
+        String username = (String) settings.get("username");
+        String password = (String) settings.get("password");
+        if (username == null || password == null)
+            throw new ConfigurationException("username and password are mandatory");
+
+        final NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
+        smsClient = client.getSmsClient();
     }
 
     @Override
@@ -55,13 +62,11 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     @Override
     protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
-        NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
-
         TextMessage msg = new TextMessage(senderId, phoneNumber, code);
 
         SmsSubmissionResult[] results;
         try {
-            results = client.getSmsClient().submitMessage(msg);
+            results = smsClient.submitMessage(msg);
         }
         catch (Exception e) {
             throw new IOException("Error sending SMS", e);

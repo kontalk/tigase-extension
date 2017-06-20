@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -38,7 +39,7 @@ public interface PhoneNumberVerificationProvider {
     /** Challenge the user with the caller ID presented in a user-initiated call to a given phone number. */
     public static final String CHALLENGE_CALLER_ID = "callerid";
 
-    public void init(Map<String, Object> settings) throws TigaseDBException;
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException;
 
     public String getSenderId();
 

@@ -19,6 +19,7 @@
 package org.kontalk.xmppserver.registration;
 
 import org.kontalk.xmppserver.auth.KontalkAuth;
+import tigase.conf.ConfigurationException;
 import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
@@ -45,7 +46,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
 
     private VerificationRepository repo;
 
-    protected void init(Logger log, Map<String, Object> settings) throws TigaseDBException {
+    protected void init(Logger log, Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
 
         this.log = log;

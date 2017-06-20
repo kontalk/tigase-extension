@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class AndroidEmulatorProvider extends SMSDataStoreVerificationProvider {
     private String ackInstructions;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(log, settings);
         deviceId = (String) settings.get("device");
         ackInstructions = "A SMS with a verification code will be sent to emulator " + deviceId + ".";

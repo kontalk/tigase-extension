@@ -20,6 +20,7 @@ package org.kontalk.xmppserver.registration;
 
 import com.nexmo.client.NexmoClient;
 import com.nexmo.client.NexmoClientException;
+import com.nexmo.client.NexmoUnexpectedException;
 import com.nexmo.client.auth.TokenAuthMethod;
 import com.nexmo.client.verify.CheckResult;
 import com.nexmo.client.verify.VerifyClient;
@@ -73,7 +74,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
             result = verifyClient.verify(phoneNumber, brand, senderId,
                     VerificationRepository.VERIFICATION_CODE_LENGTH, null);
         }
-        catch (NexmoClientException e) {
+        catch (NexmoClientException | NexmoUnexpectedException e) {
             throw new IOException("Error requesting verification", e);
         }
 
@@ -102,7 +103,7 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
             NexmoVerifyRequest myRequest = (NexmoVerifyRequest) request;
             result = verifyClient.check(myRequest.getId(), proof);
         }
-        catch (NexmoClientException e) {
+        catch (NexmoClientException | NexmoUnexpectedException e) {
             throw new IOException("Error requesting verification", e);
         }
 

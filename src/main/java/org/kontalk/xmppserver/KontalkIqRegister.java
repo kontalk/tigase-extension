@@ -21,7 +21,9 @@ package org.kontalk.xmppserver;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
-import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.text.CharacterPredicate;
+import org.apache.commons.text.CharacterPredicates;
+import org.apache.commons.text.RandomStringGenerator;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
@@ -117,6 +119,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
 
+    private static final int PRIVATE_KEY_ID_LEN = 40;
+
     private static final RosterFlat rosterUtil = new RosterFlat();
     private static final SessionManagerHandler loginHandler = new SessionManagerHandler() {
         @Override
@@ -163,6 +167,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Map<BareJID, RegistrationRequest> requests;
 
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
+
+    private final RandomStringGenerator privateKeyIdGenerator = new RandomStringGenerator.Builder()
+            .filteredBy(CharacterPredicates.DIGITS, new CharacterPredicate() {
+                @Override
+                public boolean test(int codePoint) {
+                    return Character.isUpperCase(codePoint);
+                }
+            })
+            .build();
 
     @Override
     public String id() {
@@ -769,7 +782,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private Packet storePrivateKey(XMPPResourceConnection session, Packet packet, String privateKeyB64)
             throws NotAuthorizedException, TigaseDBException {
-        String token = RandomStringUtils.random(40, "0123456789ABCDEF");
+        String token = privateKeyIdGenerator.generate(PRIVATE_KEY_ID_LEN).toUpperCase();
         session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_DATA, privateKeyB64);
         session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_TOKEN, token);
         return packet.okResult(preparePrivateKeyStoredResponseForm(token), 0);

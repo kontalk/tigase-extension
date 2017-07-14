@@ -21,7 +21,6 @@ package org.kontalk.xmppserver;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
-import org.apache.commons.text.CharacterPredicate;
 import org.apache.commons.text.CharacterPredicates;
 import org.apache.commons.text.RandomStringGenerator;
 import org.bouncycastle.openpgp.PGPException;
@@ -169,12 +168,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
     private final RandomStringGenerator privateKeyIdGenerator = new RandomStringGenerator.Builder()
-            .filteredBy(CharacterPredicates.DIGITS, new CharacterPredicate() {
-                @Override
-                public boolean test(int codePoint) {
-                    return Character.isUpperCase(codePoint);
-                }
-            })
+            .filteredBy(CharacterPredicates.DIGITS, Character::isUpperCase)
             .build();
 
     @Override

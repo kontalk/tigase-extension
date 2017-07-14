@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ package org.kontalk.xmppserver.registration;
 import org.kontalk.xmppserver.registration.cognalys.CognalysVerifyClient;
 import org.kontalk.xmppserver.registration.cognalys.ConfirmResult;
 import org.kontalk.xmppserver.registration.cognalys.RequestResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -42,7 +43,7 @@ public class CognalysVerifyProvider extends AbstractSMSVerificationProvider {
     private String password;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
         username = (String) settings.get("username");
         password = (String) settings.get("password");

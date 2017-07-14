@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,14 +18,17 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.verify.sdk.CheckResult;
-import com.nexmo.verify.sdk.NexmoVerifyClient;
-import com.nexmo.verify.sdk.VerifyResult;
-import org.xml.sax.SAXException;
+import com.nexmo.client.NexmoClient;
+import com.nexmo.client.NexmoClientException;
+import com.nexmo.client.NexmoUnexpectedException;
+import com.nexmo.client.auth.TokenAuthMethod;
+import com.nexmo.client.verify.CheckResult;
+import com.nexmo.client.verify.VerifyClient;
+import com.nexmo.client.verify.VerifyResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -40,16 +43,22 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
-    private String username;
-    private String password;
     private String brand;
 
+    private VerifyClient verifyClient;
+
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
-        username = (String) settings.get("username");
-        password = (String) settings.get("password");
         brand = (String) settings.get("brand");
+
+        String username = (String) settings.get("username");
+        String password = (String) settings.get("password");
+        if (username == null || password == null)
+            throw new ConfigurationException("username and password are mandatory");
+
+        final NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
+        verifyClient = client.getVerifyClient();
     }
 
     @Override
@@ -59,21 +68,13 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        NexmoVerifyClient client;
-
-        try {
-            client = new NexmoVerifyClient(username, password);
-        }
-        catch (ParserConfigurationException e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
-
         VerifyResult result;
 
         try {
-            result = client.verify(phoneNumber, brand, senderId, VerificationRepository.VERIFICATION_CODE_LENGTH, null);
+            result = verifyClient.verify(phoneNumber, brand, senderId,
+                    VerificationRepository.VERIFICATION_CODE_LENGTH, null);
         }
-        catch (SAXException e) {
+        catch (NexmoClientException | NexmoUnexpectedException e) {
             throw new IOException("Error requesting verification", e);
         }
 
@@ -92,22 +93,17 @@ public class NexmoVerifyProvider extends AbstractSMSVerificationProvider {
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
-        NexmoVerifyClient client;
-
-        try {
-            client = new NexmoVerifyClient(username, password);
-        }
-        catch (ParserConfigurationException e) {
-            throw new IOException("Error initializing Nexmo client", e);
+        if (proof == null || proof.length() == 0) {
+            return false;
         }
 
         CheckResult result;
 
         try {
             NexmoVerifyRequest myRequest = (NexmoVerifyRequest) request;
-            result = client.check(myRequest.getId(), proof);
+            result = verifyClient.check(myRequest.getId(), proof);
         }
-        catch (SAXException e) {
+        catch (NexmoClientException | NexmoUnexpectedException e) {
             throw new IOException("Error requesting verification", e);
         }
 

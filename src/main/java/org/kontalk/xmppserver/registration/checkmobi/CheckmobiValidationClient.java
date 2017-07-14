@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,14 +18,12 @@
 
 package org.kontalk.xmppserver.registration.checkmobi;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpResponseException;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -35,6 +33,7 @@ import org.apache.http.impl.client.HttpClients;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,15 +48,26 @@ public class CheckmobiValidationClient {
     private static final String BASE_URL = "https://api.checkmobi.com/v1/validation";
     private static final String REQUEST_URL = BASE_URL + "/request";
     private static final String VERIFY_URL = BASE_URL + "/verify";
+    private static final String STATUS_URL = BASE_URL + "/status/%s";
 
     private static final Gson jsonFormatter = new GsonBuilder().create();
 
     private final String apiKey;
+    private final String verificationType;
 
     private CloseableHttpClient client = HttpClients.createDefault();
 
-    public CheckmobiValidationClient(String apiKey) {
+    public static CheckmobiValidationClient reverseCallerID(String apiKey) {
+        return new CheckmobiValidationClient(apiKey, "reverse_cli");
+    }
+
+    public static CheckmobiValidationClient callerID(String apiKey) {
+        return new CheckmobiValidationClient(apiKey, "cli");
+    }
+
+    private CheckmobiValidationClient(String apiKey, String verificationType) {
         this.apiKey = apiKey;
+        this.verificationType = verificationType;
     }
 
     public RequestResult request(String number) throws IOException {
@@ -65,7 +75,9 @@ public class CheckmobiValidationClient {
             JsonObject data = _request(number);
             try {
                 String id = data.getAsJsonPrimitive("id").getAsString();
-                return new RequestResult(id);
+                String dialingNumber = data.has("dialing_number") ?
+                        data.getAsJsonPrimitive("dialing_number").getAsString() : null;
+                return new RequestResult(id, dialingNumber);
             }
             catch (NullPointerException e) {
                 // simulate bad request
@@ -94,10 +106,27 @@ public class CheckmobiValidationClient {
         }
     }
 
+    public StatusResult status(String requestId) throws IOException {
+        try {
+            JsonObject data = _status(requestId);
+            try {
+                boolean validated = data.getAsJsonPrimitive("validated").getAsBoolean();
+                return new StatusResult(validated);
+            }
+            catch (NullPointerException e) {
+                // simulate bad request
+                throw new HttpResponseException(400, "Bad request");
+            }
+        }
+        catch (HttpResponseException e) {
+            return new StatusResult(e);
+        }
+    }
+
     private JsonObject _request(String number) throws IOException {
         Map<String, String> data = new HashMap<>();
         data.put("number", number);
-        data.put("type", "reverse_cli");
+        data.put("type", verificationType);
         return _post(REQUEST_URL, data);
     }
 
@@ -106,6 +135,10 @@ public class CheckmobiValidationClient {
         data.put("id", requestId);
         data.put("pin", pin);
         return _post(VERIFY_URL, data);
+    }
+
+    private JsonObject _status(String requestId) throws IOException {
+        return _get(String.format(STATUS_URL, URLEncoder.encode(requestId, "UTF-8")));
     }
 
     private JsonObject _post(String url, Map<String, String> data) throws IOException {
@@ -119,6 +152,20 @@ public class CheckmobiValidationClient {
                 ContentType.create("application/json", Charset.forName("UTF-8"))));
 
         CloseableHttpResponse res = client.execute(req);
+        return parseResponse(res);
+    }
+
+    private JsonObject _get(String url) throws IOException {
+        HttpGet req = new HttpGet(url);
+
+        // authentication
+        req.addHeader("Authorization", apiKey);
+
+        CloseableHttpResponse res = client.execute(req);
+        return parseResponse(res);
+    }
+
+    private JsonObject parseResponse(CloseableHttpResponse res) throws IOException {
         try {
             if (res.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 HttpEntity entity = res.getEntity();

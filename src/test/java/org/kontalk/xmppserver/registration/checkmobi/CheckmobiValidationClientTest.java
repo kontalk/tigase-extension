@@ -20,7 +20,7 @@ public class CheckmobiValidationClientTest {
 
     @Before
     public void setUp() throws Exception {
-        client = new CheckmobiValidationClient(API_KEY);
+        client = CheckmobiValidationClient.reverseCallerID(API_KEY);
     }
 
     private void assertStatus(AbstractResult res) {

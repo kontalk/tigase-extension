@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,8 +47,6 @@ public class ProbeComponent extends AbstractMessageReceiver {
     private static final String DISCO_DESCRIPTION = "Kontalk probe engine";
     static final String XMLNS = "http://kontalk.org/extensions/roster";
     private static final String NODE = XMLNS + "#probe";
-    private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
-    private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
 
     /** Timeout of remote requests in milliseconds. */
     private static final int REQUEST_TIMEOUT = 60000;
@@ -103,8 +101,8 @@ public class ProbeComponent extends AbstractMessageReceiver {
                     if (items != null) {
                         String serverDomain = getDefVHostItem().getDomain();
 
-                        Set<BareJID> found = new HashSet<BareJID>();
-                        Set<BareJID> remote = localOnly ? null : new HashSet<BareJID>();
+                        Set<BareJID> found = new HashSet<>();
+                        Set<BareJID> remote = localOnly ? null : new HashSet<>();
                         for (Element item : items) {
                             if (!item.getName().equals("item")) {
                                 // not a roster item
@@ -395,6 +393,8 @@ public class ProbeComponent extends AbstractMessageReceiver {
 
         // init probe manager
         probeManager = ProbeManager.init(user_repository);
+
+        updateServiceDiscoveryItem(getName(), null, getDiscoDescription(), false, NODE);
     }
 
     @Override
@@ -411,11 +411,6 @@ public class ProbeComponent extends AbstractMessageReceiver {
     public void setVHostManager(VHostManagerIfc manager) {
         super.setVHostManager(manager);
         authorizedSender = JID.jidInstanceNS("internal", manager.getDefVHostItem().getDomain());
-    }
-
-    @Override
-    public List<Element> getDiscoFeatures(JID from) {
-        return DISCO_FEATURES;
     }
 
     public static Packet createProbeRequest(String id, BareJID... users) {

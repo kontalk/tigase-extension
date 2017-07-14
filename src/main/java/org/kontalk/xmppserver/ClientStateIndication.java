@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +19,15 @@
 package org.kontalk.xmppserver;
 
 import tigase.db.NonAuthUserRepository;
+import tigase.server.Iq;
 import tigase.server.Message;
 import tigase.server.Packet;
 import tigase.server.Presence;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -37,13 +40,17 @@ import java.util.logging.Logger;
 public class ClientStateIndication extends XMPPProcessorAbstract implements XMPPPacketFilterIfc, XMPPStopListenerIfc {
     private static Logger log = Logger.getLogger(ClientStateIndication.class.getName());
 
-    private static final String XMLNS = "urn:xmpp:csi:0";
-    public static final String ID = XMLNS;
+    static final String XMLNS = "urn:xmpp:csi:0";
+    public static final String ID = "kontalk:" + XMLNS;
+
+    /** Max size of the packet queue. After reaching this point, data will be sent out to the client. */
+    // TODO make this a parameter
+    private static final int MAX_QUEUE_SIZE = 50;
 
     private static final String[] XMLNSS = {XMLNS, XMLNS};
 
-    private static final String ELEM_ACTIVE = "active";
-    private static final String ELEM_INACTIVE = "inactive";
+    static final String ELEM_ACTIVE = "active";
+    static final String ELEM_INACTIVE = "inactive";
 
     private static final String[][] ELEMENTS = {
             { ELEM_ACTIVE },
@@ -54,7 +61,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     private static final String CHATSTATE_XMLNS = "http://jabber.org/protocol/chatstates";
 
-    private static final String SESSION_QUEUE = ID + ":queue";
+    static final String SESSION_QUEUE = ID + ":queue";
 
     @Override
     public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
@@ -80,7 +87,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "User disconnected, activating session {0}", session);
             }
-            flush(session, results, false, true);
+            flush(session, results, false, true, true);
         }
         else {
             if (log.isLoggable(Level.FINEST)) {
@@ -91,15 +98,18 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     /** Activates client state indication (that is, client going to inactive state). */
     private void setInactive(XMPPResourceConnection session) {
-        session.putSessionData(SESSION_QUEUE, new InternalQueue());
+        // check if there is already a queue
+        final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
+        if (queue == null)
+            session.putSessionData(SESSION_QUEUE, new InternalQueue(MAX_QUEUE_SIZE));
     }
 
     /** Deactivates client state indication (that is, client going to active state). */
     private void setActive(XMPPResourceConnection session, Queue<Packet> results) {
-        flush(session, results, true, false);
+        flush(session, results, true, false, true);
     }
 
-    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence, boolean stopped) {
+    private void flush(XMPPResourceConnection session, Queue<Packet> results, boolean flushPresence, boolean stopped, boolean remove) {
         final InternalQueue queue = (InternalQueue) session.getSessionData(SESSION_QUEUE);
         if (queue == null)
             return;
@@ -152,7 +162,8 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             }
             // destroy and remove stanza store
             queue.clear();
-            session.removeSessionData(SESSION_QUEUE);
+            if (remove)
+                session.removeSessionData(SESSION_QUEUE);
         }
     }
 
@@ -167,17 +178,32 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             return;
         }
 
+        // it will be true if at least a packet is going through
+        boolean needsFlush = false;
+
         for (Iterator<Packet> it = results.iterator(); it.hasNext(); ) {
             Packet res = it.next();
             try {
-                synchronized (queue) {
-                    if (res.getStanzaTo() != null && res.getStanzaTo().equals(session.getConnectionId())) {
+                if (res.getPacketTo() != null && res.getPacketTo().equals(session.getConnectionId())) {
+                    synchronized (queue) {
                         if (log.isLoggable(Level.FINEST)) {
                             log.log(Level.FINEST, "Checking packet {0} for session {1}",
                                     new Object[]{packet, session});
                         }
                         if (filterPacket(res, queue)) {
                             it.remove();
+                            // queue is getting big, flush them all!
+                            if (queue.needsFlush()) {
+                                needsFlush = true;
+                                // since we are going to flush anyway, no need to continue
+                                // (fix for ConcurrentModificationException)
+                                break;
+                            }
+                        }
+                        else if (!isSilent(res)) {
+                            // this packet will go through
+                            // do a flush later since we are transmitting
+                            needsFlush = true;
                         }
                     }
                 }
@@ -185,6 +211,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             catch (NoConnectionIdException e) {
                 // ignore
             }
+        }
+
+        if (needsFlush) {
+            flush(session, results, true, false, false);
         }
     }
 
@@ -213,6 +243,12 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
         }
 
         return false;
+    }
+
+    /** Returns true if the given packet is silent (e.g. ping). */
+    private boolean isSilent(Packet packet) {
+        return packet.getElemName() == Iq.ELEM_NAME &&
+                packet.getElement().getChild("ping", "urn:xmpp:ping") != null;
     }
 
     private boolean isPresence(Packet packet) {
@@ -266,18 +302,54 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
     }
 
     /** A typedef for the internal stanza queue for CSI. */
-    private static final class InternalQueue extends LinkedHashMap<JID, Presence> {
+    static final class InternalQueue extends LinkedHashMap<JID, Presence> {
+        private static final DateFormat formatter;
+        static {
+            formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+            formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+        }
+
         private List<Message> messages;
+        private int maxSize;
+
+        public InternalQueue(int max) {
+            super();
+            maxSize = max;
+        }
+
+        @Override
+        public Presence put(JID key, Presence value) {
+            return super.put(key, addDelay(value));
+        }
 
         public void putMessage(Message packet) {
             if (messages == null) {
                 messages = new LinkedList<>();
             }
-            messages.add(packet);
+            messages.add(addDelay(packet));
         }
 
         public List<Message> getMessages() {
             return messages;
+        }
+
+        private <T extends Packet> T addDelay(T packet) {
+            Element elem = packet.getElement();
+            // do not overwrite old delay element
+            if (elem.getChild("delay", "urn:xmpp:delay") == null) {
+                String stamp;
+
+                synchronized (formatter) {
+                    stamp = formatter.format(new Date());
+                }
+
+                Element x = new Element("delay", (String) null,
+                        new String[] { "stamp", "xmlns" },
+                        new String[] {  stamp, "urn:xmpp:delay" }
+                );
+                elem.addChild(x);
+            }
+            return packet;
         }
 
         @Override
@@ -286,6 +358,10 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             if (messages != null) {
                 messages.clear();
             }
+        }
+
+        public boolean needsFlush() {
+            return ((messages != null ? messages.size() : 0) + size()) >= maxSize;
         }
     }
 

@@ -9,7 +9,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.1</version>
+        <version>3.6.1</version>
         <configuration>
           <source>1.8</source>
           <target>1.8</target>
@@ -17,29 +17,20 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.19.1</version>
+        <configuration>
+          <forkMode>once</forkMode>
+          <workingDirectory>target</workingDirectory>
+          <argLine>-Djava.library.path=lib</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.8</version>
+        <version>3.0.0</version>
         <executions>
-          <execution>
-            <id>copy</id>
-            <phase>compile</phase>
-            <goals>
-              <goal>copy</goal>
-            </goals>
-            <configuration>
-              <artifactItems>
-                <artifactItem>
-                  <groupId>org.gnupg</groupId>
-                  <artifactId>gnupg-for-java</artifactId>
-                  <version>0.2-pre-SNAPSHOT</version>
-                  <type>so</type>
-                  <outputDirectory>target/lib</outputDirectory>
-                  <destFileName>libgnupg-for-java.so</destFileName>
-                </artifactItem>
-              </artifactItems>
-            </configuration>
-          </execution>
-          <execution>
+        <execution>
             <phase>install</phase>
             <goals>
                 <goal>copy-dependencies</goal>
@@ -47,92 +38,120 @@
             <configuration>
                 <outputDirectory>${project.build.directory}/lib</outputDirectory>
             </configuration>
-          </execution>
+        </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-            <configuration>
-              <forkMode>once</forkMode>
-              <workingDirectory>target</workingDirectory>
-              <argLine>-Djava.library.path=lib</argLine>
-            </configuration>
-      </plugin>
+        </plugin>
+        <plugin>
+          <groupId>org.flywaydb</groupId>
+          <artifactId>flyway-maven-plugin</artifactId>
+          <version>4.2.0</version>
+          <configuration/>
+          <dependencies>
+            <dependency>
+              <groupId>mysql</groupId>
+              <artifactId>mysql-connector-java</artifactId>
+              <version>6.0.5</version>
+            </dependency>
+          </dependencies>
+        </plugin>
     </plugins>
   </build>
   <dependencies>
     <dependency>
-      <groupId>com.googlecode.libphonenumber</groupId>
-      <artifactId>libphonenumber</artifactId>
-      <version>7.1.0</version>
-    </dependency>
-    <dependency>
       <groupId>org.kontalk</groupId>
       <artifactId>tigase-server</artifactId>
-      <version>7.1.0-SNAPSHOT</version>
+      <version>7.1.1-SNAPSHOT</version>
       <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.googlecode.libphonenumber</groupId>
+      <artifactId>libphonenumber</artifactId>
+      <version>8.6.0</version>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.53</version>
+      <version>1.54</version>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcpkix-jdk15on</artifactId>
-      <version>1.53</version>
+      <version>1.54</version>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcpg-jdk15on</artifactId>
-      <version>1.53</version>
-    </dependency>
-    <dependency>
-      <groupId>org.gnupg</groupId>
-      <artifactId>gnupg-for-java</artifactId>
-      <version>0.2-pre-SNAPSHOT</version>
+      <version>1.54</version>
     </dependency>
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
-      <version>2.4</version>
-      <scope>compile</scope>
+      <version>2.8.1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents</groupId>
       <artifactId>httpclient</artifactId>
-      <version>4.5.1</version>
+      <version>4.5.2</version>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.retrofit2</groupId>
+      <artifactId>retrofit</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.retrofit2</groupId>
+      <artifactId>converter-gson</artifactId>
+      <version>2.3.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>3.4</version>
+      <version>3.6</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.5</version>
     </dependency>
     <dependency>
       <groupId>fm.last.commons</groupId>
       <artifactId>lastcommons-kyoto</artifactId>
       <version>1.24.0</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-log4j12</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.google.gcm</groupId>
+      <artifactId>gcm-server</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.nexmo</groupId>
-      <artifactId>nexmo-sdk</artifactId>
-      <version>1.0</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/nexmo-sdk.jar</systemPath>
+      <artifactId>client</artifactId>
+      <version>2.0.2</version>
     </dependency>
     <dependency>
-      <groupId>com.google</groupId>
-      <artifactId>gcm-server</artifactId>
-      <version>1.0</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/gcm-server.jar</systemPath>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-all</artifactId>
+      <version>2.4.7</version>
+      <scope>compile</scope>
     </dependency>
-    <!-- required by gcm-server -->
+
     <dependency>
-      <groupId>com.googlecode.json-simple</groupId>
-      <artifactId>json-simple</artifactId>
-      <version>1.1.1</version>
+      <groupId>org.kontalk</groupId>
+      <artifactId>tigase-server</artifactId>
+      <version>7.1.1-SNAPSHOT</version>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

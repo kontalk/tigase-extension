@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,20 +18,16 @@
 
 package org.kontalk.xmppserver;
 
-import com.freiheit.gnupg.GnuPGContext;
-import com.freiheit.gnupg.GnuPGData;
-import com.freiheit.gnupg.GnuPGKey;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.bouncycastle.openpgp.PGPSecretKeyRing;
+import org.kontalk.xmppserver.pgp.GnuPGInterface;
 import org.kontalk.xmppserver.pgp.PGPLocalKeyring;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
 import tigase.xmpp.BareJID;
 
 import javax.xml.bind.DatatypeConverter;
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,29 +40,32 @@ import java.util.Map;
  * @author Daniele Ricci
  */
 public class KontalkKeyring {
-    private static final Map<String, KontalkKeyring> instances = new HashMap<String, KontalkKeyring>();
+    private static final Map<String, KontalkKeyring> instances = new HashMap<>();
 
     private final String domain;
     private final PGPLocalKeyring keyring;
 
-    private final PGPSecretKeyRing secretPrivateKey;
-    private final PGPPublicKeyRing secretPublicKey;
     private final PGPPublicKey secretMasterKey;
-
-    // used only for signing.
-    private final GnuPGContext globalContext;
+    private final PGPPublicKeyRing secretPublicKeyring;
+    private final String secretKeyFingerprint;
 
     /** Use {@link #getInstance(String)} instead. */
-    public KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
+    private KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
         this.domain = domain;
         this.keyring = new PGPLocalKeyring(keyring);
 
-        secretPrivateKey = PGPUtils.readSecretKeyring(new FileInputStream(secretPrivateKeyFile));
-        secretPublicKey = PGPUtils.readPublicKeyring(new FileInputStream(secretPublicKeyFile));
-        secretMasterKey = PGPUtils.getMasterKey(secretPublicKey);
+        // import into GnuPG
+        GnuPGInterface.getInstance().importKey(secretPrivateKeyFile);
+        GnuPGInterface.getInstance().importKey(secretPublicKeyFile);
 
-        globalContext = new GnuPGContext();
-        globalContext.setArmor(false);
+        // calculate secret key fingerprint for signing
+        secretPublicKeyring = PGPUtils.readPublicKeyring(new FileInputStream(secretPublicKeyFile));
+        secretMasterKey = PGPUtils.getMasterKey(secretPublicKeyring);
+        secretKeyFingerprint = PGPUtils.getFingerprint(secretMasterKey);
+    }
+
+    public PGPPublicKeyRing getSecretPublicKey() {
+        return secretPublicKeyring;
     }
 
     /**
@@ -139,119 +138,13 @@ public class KontalkKeyring {
         return (pk != null) ? pk.getEncoded() : null;
     }
 
-    private String importKeyGlobal(byte[] keyData) {
-        String fpr;
-        synchronized (globalContext) {
-            GnuPGData data = globalContext.createDataObject(keyData);
-            fpr = globalContext.importKey(data);
-            data.destroy();
-        }
-        return fpr;
-    }
-
-    public byte[] exportKeyGlobal(String fingerprint) throws IOException {
-        GnuPGData data;
-        synchronized (globalContext) {
-            data = globalContext.createDataObject();
-            globalContext.export(fingerprint, 0, data);
-        }
-
-        ByteArrayOutputStream baos = null;
-
-        try {
-            synchronized (globalContext) {
-                baos = new ByteArrayOutputStream(data.size());
-                data.write(baos);
-            }
-            return baos.toByteArray();
-        }
-        finally {
-            try {
-                if (baos != null)
-                    baos.close();
-            }
-            catch (IOException ignored) {
-            }
-        }
-    }
-
     // TODO this needs to be implemented in Java
     public byte[] signKey(byte[] keyData) throws IOException, PGPException {
-        String fpr = importKeyGlobal(keyData);
-
-        if (fpr != null) {
-            try {
-                StringBuilder cmd = new StringBuilder("gpg2 --yes --batch -u ")
-                        .append(PGPUtils.getFingerprint(secretMasterKey))
-                        .append(" --sign-key ")
-                        .append(fpr);
-
-                try {
-                    synchronized (globalContext) {
-                        Runtime.getRuntime().exec(cmd.toString()).waitFor();
-                    }
-                }
-                catch (InterruptedException e) {
-                    // interrupted
-                    throw new IOException("Interrupted");
-                }
-
-                return exportKeyGlobal(fpr);
-            }
-            finally {
-                // remove key from global context
-                synchronized (globalContext) {
-                    GnuPGKey key = globalContext.getKeyByFingerprint(fpr);
-                    if (key != null) {
-                        globalContext.delete(key, false);
-                    }
-                }
-            }
-        }
-
-        throw new PGPException("Invalid key data");
+        return GnuPGInterface.getInstance().signKey(keyData, secretKeyFingerprint);
     }
 
-    /**
-     * Verifies Kontalk legacy authentication tokens.
-     * @param token the authentication token
-     * @param fingerprint fingerprint of the legacy server
-     * @return a Kontalk user instance if successful.
-     * @deprecated Legacy token support will be dropped soon.
-     */
-    @Deprecated
-    public KontalkUser verifyLegacyToken(byte[] token, String fingerprint) {
-        synchronized (globalContext) {
-            GnuPGData signed = null;
-            GnuPGData unused = null;
-            GnuPGData plain = null;
-
-            try {
-                signed = globalContext.createDataObject(token);
-                unused = globalContext.createDataObject();
-                plain = globalContext.createDataObject();
-                globalContext.verify(signed, unused, plain);
-
-                String text = plain.toString();
-                String[] parsed = text.split("\\|");
-                if (parsed.length == 2 && parsed[1].equals(fingerprint)) {
-                    String localpart = parsed[0].length() > 40 ? parsed[0].substring(0, 40) : parsed[0];
-                    BareJID jid = BareJID.bareJIDInstanceNS(localpart, domain);
-                    return new KontalkUser(jid, null);
-                }
-
-            }
-            finally {
-                if (signed != null)
-                    signed.destroy();
-                if (unused != null)
-                    unused.destroy();
-                if (plain != null)
-                    plain.destroy();
-            }
-        }
-
-        return null;
+    public byte[] signData(byte[] data) throws IOException, PGPException {
+        return GnuPGInterface.getInstance().signData(data, secretKeyFingerprint);
     }
 
     public void close() throws IOException {

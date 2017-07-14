@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 package org.kontalk.xmppserver.registration;
 
 import org.kontalk.xmppserver.auth.KontalkAuth;
+import tigase.conf.ConfigurationException;
+import tigase.db.DBInitException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.XMPPResourceConnection;
@@ -44,7 +46,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
 
     private VerificationRepository repo;
 
-    protected void init(Logger log, Map<String, Object> settings) throws TigaseDBException {
+    protected void init(Logger log, Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
 
         this.log = log;
@@ -54,7 +56,7 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         Object _timeout = settings.get("expire");
         int timeout = (_timeout != null) ? (Integer) _timeout : 0;
         try {
-            repo = new DataVerificationRepository(dbUri, timeout);
+            repo = createVerificationRepository(dbUri, timeout);
         }
         catch (ClassNotFoundException e) {
             throw new TigaseDBException("Repository class not found (uri=" + dbUri + ")", e);
@@ -77,6 +79,11 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
         }
     }
 
+    protected VerificationRepository createVerificationRepository(String dbUri, int timeout)
+            throws ClassNotFoundException, DBInitException, InstantiationException, SQLException, IllegalAccessException {
+        return new DataVerificationRepository(dbUri, timeout);
+    }
+
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
@@ -95,6 +102,10 @@ public abstract class SMSDataStoreVerificationProvider extends AbstractSMSVerifi
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof)
             throws IOException, TigaseDBException {
+        if (proof == null || proof.length() == 0) {
+            return false;
+        }
+
         SMSDataStoreRequest myRequest = (SMSDataStoreRequest) request;
         return verify(myRequest.getJid(), proof);
     }

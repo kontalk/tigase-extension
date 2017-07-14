@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,7 +88,26 @@ public class PublicKeyPublish extends XMPPProcessor implements XMPPProcessorIfc 
 
             if (xmlns == XMLNS && type == StanzaType.get) {
                 JID to = packet.getStanzaTo();
-                if (roster_util.isSubscribedTo(session, to) || session.isUserId(to.getBareJID())) {
+
+                // our server's key was requested
+                JID domain = session.getDomainAsJID();
+                if (domain.equals(to)) {
+                    try {
+                        byte[] publicKeyData = KontalkKeyring.getInstance(domain.toString())
+                                .getSecretPublicKey().getEncoded();
+                        Element pubkey = new Element("pubkey");
+                        pubkey.setXMLNS(XMLNS);
+                        pubkey.setCData(Base64.encode(publicKeyData));
+                        results.offer(packet.okResult(pubkey, 0));
+                    }
+                    catch (IOException | PGPException e) {
+                        log.log(Level.WARNING, "Unable retrieve server public keyring");
+                        results.offer((Authorization.INTERNAL_SERVER_ERROR.getResponseMessage(packet,
+                                "Server public key not available.", true)));
+                    }
+                }
+
+                else if (roster_util.isSubscribedTo(session, to) || session.isUserId(to.getBareJID())) {
                     Element pubkey = null;
 
                     // retrieve fingerprint from repository and send key data

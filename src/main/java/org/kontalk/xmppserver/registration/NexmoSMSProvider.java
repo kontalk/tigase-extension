@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,9 +18,12 @@
 
 package org.kontalk.xmppserver.registration;
 
-import com.nexmo.messaging.sdk.NexmoSmsClient;
-import com.nexmo.messaging.sdk.SmsSubmissionResult;
-import com.nexmo.messaging.sdk.messages.TextMessage;
+import com.nexmo.client.NexmoClient;
+import com.nexmo.client.auth.TokenAuthMethod;
+import com.nexmo.client.sms.SmsClient;
+import com.nexmo.client.sms.SmsSubmissionResult;
+import com.nexmo.client.sms.messages.TextMessage;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 
 import java.io.IOException;
@@ -37,14 +40,19 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 
-    private String username;
-    private String password;
+    private SmsClient smsClient;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(log, settings);
-        username = (String) settings.get("username");
-        password = (String) settings.get("password");
+
+        String username = (String) settings.get("username");
+        String password = (String) settings.get("password");
+        if (username == null || password == null)
+            throw new ConfigurationException("username and password are mandatory");
+
+        final NexmoClient client = new NexmoClient(new TokenAuthMethod(username, password));
+        smsClient = client.getSmsClient();
     }
 
     @Override
@@ -54,19 +62,11 @@ public class NexmoSMSProvider extends SMSDataStoreVerificationProvider {
 
     @Override
     protected void sendVerificationCode(String phoneNumber, String code) throws IOException {
-        NexmoSmsClient client;
-        try {
-            client = new NexmoSmsClient(username, password);
-        }
-        catch (Exception e) {
-            throw new IOException("Error initializing Nexmo client", e);
-        }
-
         TextMessage msg = new TextMessage(senderId, phoneNumber, code);
 
         SmsSubmissionResult[] results;
         try {
-            results = client.submitMessage(msg);
+            results = smsClient.submitMessage(msg);
         }
         catch (Exception e) {
             throw new IOException("Error sending SMS", e);

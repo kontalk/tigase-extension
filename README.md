@@ -11,7 +11,6 @@ They are based on latest git master of our custom patched [tigase-server](//gith
 Internal dependencies can be automatically installed by running the script `install-deps.sh`. It will download all repositories in the current working directory and run `mvn install` for each one of them.
 
 * [tigase-server](//github.com/kontalk/tigase-server)
-* [gnupg-for-java](//github.com/kontalk/gnupg-for-java)
 
 ## Build
 

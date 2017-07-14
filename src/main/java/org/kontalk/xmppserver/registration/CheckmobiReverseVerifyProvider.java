@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ package org.kontalk.xmppserver.registration;
 import org.kontalk.xmppserver.registration.checkmobi.CheckmobiValidationClient;
 import org.kontalk.xmppserver.registration.checkmobi.RequestResult;
 import org.kontalk.xmppserver.registration.checkmobi.VerifyResult;
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -44,7 +45,7 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
     private String apiKey;
 
     @Override
-    public void init(Map<String, Object> settings) throws TigaseDBException {
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException {
         super.init(settings);
         apiKey = (String) settings.get("apikey");
     }
@@ -56,7 +57,7 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
 
     @Override
     public RegistrationRequest startVerification(String domain, String phoneNumber) throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException {
-        CheckmobiValidationClient client = new CheckmobiValidationClient(apiKey);
+        CheckmobiValidationClient client = CheckmobiValidationClient.reverseCallerID(apiKey);
 
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Requesting CheckMobi verification for " + phoneNumber);
@@ -80,7 +81,11 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
 
     @Override
     public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException {
-        CheckmobiValidationClient client = new CheckmobiValidationClient(apiKey);
+        if (proof == null || proof.length() == 0) {
+            return false;
+        }
+
+        CheckmobiValidationClient client = CheckmobiValidationClient.reverseCallerID(apiKey);
 
         // take the last N characters (dummy proof :)
         String finalProof = proof.substring(Math.max(0, proof.length() - PROOF_LENGTH));
@@ -115,7 +120,7 @@ public class CheckmobiReverseVerifyProvider extends AbstractSMSVerificationProvi
     private static final class CheckmobiRequest implements RegistrationRequest {
         private final String id;
 
-        public CheckmobiRequest(String id) {
+        CheckmobiRequest(String id) {
             this.id = id;
         }
 

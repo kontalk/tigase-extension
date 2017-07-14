@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,19 +22,26 @@ package org.kontalk.xmppserver.registration.checkmobi;
 public class RequestResult extends AbstractResult {
 
     private final String id;
+    private final String dialingNumber;
 
-    public RequestResult(String id) {
+    public RequestResult(String id, String dialingNumber) {
         super(null);
         this.id = id;
+        this.dialingNumber = dialingNumber;
     }
 
     public RequestResult(Exception error) {
         super(error);
         this.id = null;
+        this.dialingNumber = null;
     }
 
     public String getId() {
         return id;
+    }
+
+    public String getDialingNumber() {
+        return dialingNumber;
     }
 
 }

@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,20 +25,14 @@ import javax.security.sasl.SaslServerFactory;
 
 
 /**
- * SASL mechanism selector for Kontalk legacy token.
+ * SASL mechanism selector for Kontalk. Allows EXTERNAL only.
  * @author Daniele Ricci
  */
 public class KontalkMechanismSelector extends DefaultMechanismSelector {
 
     protected boolean match(SaslServerFactory factory, String mechanismName, XMPPResourceConnection session) {
-        if (session.isTlsRequired() && !session.isEncrypted())
-            return false;
-        if (factory instanceof KontalkSaslServerFactory) {
-            return (mechanismName.equals("EXTERNAL") ||
-                    mechanismName.equals(SaslKontalkToken.MECHANISM) ||
-                    mechanismName.equals(SaslKontalkPlainToken.MECHANISM));
-        }
-        return false;
+        return !(session.isTlsRequired() && !session.isEncrypted()) &&
+                factory instanceof KontalkSaslServerFactory && mechanismName.equals("EXTERNAL");
     }
 
 }

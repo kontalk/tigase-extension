@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 package org.kontalk.xmppserver.registration;
 
+import tigase.conf.ConfigurationException;
 import tigase.db.TigaseDBException;
 import tigase.xmpp.XMPPResourceConnection;
 
@@ -35,8 +36,10 @@ public interface PhoneNumberVerificationProvider {
     public static final String CHALLENGE_PIN = "pin";
     /** Challenge the user with a missed call from a random number and making the user guess the digits. */
     public static final String CHALLENGE_MISSED_CALL = "missedcall";
+    /** Challenge the user with the caller ID presented in a user-initiated call to a given phone number. */
+    public static final String CHALLENGE_CALLER_ID = "callerid";
 
-    public void init(Map<String, Object> settings) throws TigaseDBException;
+    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException;
 
     public String getSenderId();
 
@@ -61,6 +64,37 @@ public interface PhoneNumberVerificationProvider {
     /** Returns true if this provider supports this kind if registration request. */
     public boolean supportsRequest(RegistrationRequest request);
 
+    /** The challenge type implemented by this provider. */
     public String getChallengeType();
+
+    /** The brand vector image logo for this provider, if any. */
+    public default String getBrandImageVector() {
+        return null;
+    }
+
+    /** The brand small image logo for this provider, if any. */
+    public default String getBrandImageSmall() {
+        return null;
+    }
+
+    /** The brand medium image logo for this provider, if any. */
+    public default String getBrandImageMedium() {
+        return null;
+    }
+
+    /** The brand large image logo for this provider, if any. */
+    public default String getBrandImageLarge() {
+        return null;
+    }
+
+    /** The brand HD image logo for this provider, if any. */
+    public default String getBrandImageHighDef() {
+        return null;
+    }
+
+    /** The brand link the image logo will point to, if any. */
+    public default String getBrandLink() {
+        return null;
+    }
 
 }

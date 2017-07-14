@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@ import tigase.util.DNSResolver;
 import tigase.util.TigaseStringprepException;
 import tigase.xml.Element;
 import tigase.xmpp.*;
+import tigase.xmpp.impl.C2SDeliveryErrorProcessor;
 import tigase.xmpp.impl.FlexibleOfflineMessageRetrieval;
 import tigase.xmpp.impl.Message;
 import tigase.xmpp.impl.PresenceState;
@@ -157,10 +158,21 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                     if ( log.isLoggable( Level.FINER ) ){
                         log.finer( "Sending offline messages: " + packets.size() );
                     }
+                    waitForPresence(session, 250);
                     results.addAll( packets );
                 }
             } catch ( TigaseDBException e ) {
                 log.info( "Something wrong, DB problem, cannot load offline messages. " + e );
+            }
+        }
+    }
+
+    private void waitForPresence(XMPPResourceConnection session, int millis) {
+        if (session.getPresence() == null || session.getPriority() <= 0) {
+            try {
+                Thread.sleep(millis);
+            }
+            catch (InterruptedException ignored) {
             }
         }
     }
@@ -288,7 +300,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             }    // end of while (elem = elems.poll() != null)
             try {
                 if (pacs.size() > 1)
-                    Collections.sort( pacs, new StampComparator() );
+                    pacs.sort(new StampComparator());
             } catch ( NullPointerException e ) {
                 try {
                     log.warning( "Can not sort off line messages: " + pacs + ",\n" + e );
@@ -348,6 +360,9 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             }
 
             Element elem = pac.getElement().clone();
+
+            C2SDeliveryErrorProcessor.filterErrorElement(elem);
+
             String stamp;
 
             synchronized ( formatter ) {
@@ -391,12 +406,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             Element stamp_el1 = p1.getElement().getChild( "delay", "urn:xmpp:delay" );
 
             if ( stamp_el1 == null ){
-
                 // XEP-0091 support - the old one...
                 stamp_el1 = p1.getElement().getChild( "x", "jabber:x:delay" );
-                if ( stamp_el1 != null ){
-                    stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
-                }
+            }
+            if ( stamp_el1 != null ){
+                stamp1 = stamp_el1.getAttributeStaticStr( "stamp" );
             }
             if (stamp1 == null) {
                 stamp1 = "";
@@ -406,12 +420,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
             Element stamp_el2 = p2.getElement().getChild( "delay", "urn:xmpp:delay" );
 
             if ( stamp_el2 == null ){
-
                 // XEP-0091 support - the old one...
                 stamp_el2 = p2.getElement().getChild( "x", "jabber:x:delay" );
-                if ( stamp_el2 != null ){
-                    stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
-                }
+            }
+            if ( stamp_el2 != null ){
+                stamp2 = stamp_el2.getAttributeStaticStr( "stamp" );
             }
             if (stamp2 == null) {
                 stamp2 = "";

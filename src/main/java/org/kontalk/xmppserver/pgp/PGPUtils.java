@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ public class PGPUtils {
     }
 
     public static boolean isRevoked(PGPPublicKey key) throws PGPException {
-        return key.isRevoked() && findValidRevocationSignature(key);
+        return key.hasRevocation() && findValidRevocationSignature(key);
     }
 
     public static boolean isExpired(PGPPublicKey key) {
@@ -165,7 +165,8 @@ public class PGPUtils {
         while (sigs != null && sigs.hasNext()) {
             PGPSignature sig = sigs.next();
             if (sig.getKeyID() == keyId && verifyUidSignature(key, sig, signerKey, uid)) {
-                if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION) {
+                if (sig.getSignatureType() == PGPSignature.DEFAULT_CERTIFICATION ||
+                        sig.getSignatureType() == PGPSignature.CASUAL_CERTIFICATION) {
                     if (valid == null || valid.getCreationTime().before(sig.getCreationTime()))
                         valid = sig;
                 }

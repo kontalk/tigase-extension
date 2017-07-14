@@ -1,6 +1,6 @@
 /*
  * Kontalk XMPP Tigase extension
- * Copyright (C) 2015 Kontalk Devteam <devteam@kontalk.org>
+ * Copyright (C) 2017 Kontalk Devteam <devteam@kontalk.org>
 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.google.android.gcm.server.Message;
 import tigase.conf.ConfigurationException;
 import tigase.xmpp.BareJID;
 
@@ -95,6 +96,7 @@ public class GCMProvider implements PushProvider {
             com.google.android.gcm.server.Message msg = new com.google.android.gcm.server.Message.Builder()
                 .collapseKey("new")
                 .addData("action", GCM_DATA_ACTION)
+                .priority(Message.Priority.HIGH)
                 .build();
             Result result = gcmSender.send(msg, regId, GCM_MAX_RETRIES);
             if (result.getMessageId() != null) {

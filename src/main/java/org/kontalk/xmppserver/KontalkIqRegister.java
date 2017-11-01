@@ -21,8 +21,7 @@ package org.kontalk.xmppserver;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
-import org.apache.commons.text.CharacterPredicates;
-import org.apache.commons.text.RandomStringGenerator;
+import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.util.encoders.Hex;
@@ -36,6 +35,7 @@ import org.kontalk.xmppserver.probe.ProbeManager;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 import org.kontalk.xmppserver.registration.RegistrationRequest;
 import org.kontalk.xmppserver.registration.VerificationRepository;
+import org.kontalk.xmppserver.util.Utils;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
@@ -90,6 +90,13 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String IQ_FORM_KONTALK_CODE_XMLNS = "http://kontalk.org/protocol/register#code";
     private static final String IQ_FORM_KONTALK_PRIVATEKEY_XMLNS = "http://kontalk.org/protocol/register#privatekey";
 
+    // account management
+    private static final String IQ_ACCOUNT_ELEM_NAME = "account";
+    private static final String IQ_ACCOUNT_XMLNS = "http://kontalk.org/protocol/register#account";
+    private static final String IQ_ACCOUNT_PRIVATEKEY_ELEM_NAME = "privatekey";
+    private static final String IQ_ACCOUNT_JID_ELEM_NAME = "jid";
+    private static final String IQ_ACCOUNT_TOKEN_ELEM_NAME = "token";
+
     // form fields
     private static final String FORM_FIELD_PHONE = "phone";
     private static final String FORM_FIELD_CODE = "code";
@@ -110,10 +117,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String ERROR_MALFORMED_REQUEST = "Please provide either a phone number or a public key and a verification code.";
     private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
     private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
+    private static final String ERROR_INVALID_PRIVKEY_TOKEN = "Invalid private key token.";
 
     private static final String NODE_PRIVATEKEY = "kontalk/privatekey";
     private static final String KEY_PRIVATEKEY_DATA = "keydata";
-    private static final String KEY_PRIVATEKEY_TOKEN = "token";
 
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
@@ -166,10 +173,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Map<BareJID, RegistrationRequest> requests;
 
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
-
-    private final RandomStringGenerator privateKeyIdGenerator = new RandomStringGenerator.Builder()
-            .filteredBy(CharacterPredicates.DIGITS, Character::isUpperCase)
-            .build();
 
     @Override
     public String id() {
@@ -377,7 +380,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 StanzaType type = packet.getType();
 
                 switch (type) {
-                    case set:
+                    case set: {
                         // FIXME handle all the cases according to the FORM_TYPE
 
                         Element query = request.getChild(Iq.QUERY_NAME, XMLNSS[0]);
@@ -450,7 +453,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                 // private key storage
                                 String privateKey = form.getAsString(FORM_FIELD_PRIVATEKEY);
                                 if (privateKey != null) {
-                                    Packet response = storePrivateKey(session, packet, privateKey);
+                                    Packet response = storePrivateKey(session, repo, packet, privateKey);
                                     packet.processedBy(ID);
                                     results.offer(response);
                                     break;
@@ -498,8 +501,26 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                         // bad request
                         results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_MALFORMED_REQUEST, true));
                         break;
+                    }
 
                     case get: {
+                        Element query = request.getChild(Iq.QUERY_NAME, XMLNSS[0]);
+                        Element account = query.getChild(IQ_ACCOUNT_ELEM_NAME, IQ_ACCOUNT_XMLNS);
+                        if (account != null) {
+                            String token = account.getChildCData(new String[] {
+                                    IQ_ACCOUNT_ELEM_NAME,
+                                    IQ_ACCOUNT_PRIVATEKEY_ELEM_NAME,
+                                    IQ_ACCOUNT_TOKEN_ELEM_NAME
+                            });
+
+                            if (StringUtils.isNotEmpty(token)) {
+                                Packet response = retrievePrivateKey(session, repo, packet, token);
+                                response.processedBy(ID);
+                                results.offer(response);
+                                break;
+                            }
+                        }
+
                         // instructions form
                         results.offer(buildInstructionsForm(packet));
                         break;
@@ -774,11 +795,11 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
     }
 
-    private Packet storePrivateKey(XMPPResourceConnection session, Packet packet, String privateKeyB64)
+    private Packet storePrivateKey(XMPPResourceConnection session, NonAuthUserRepository repo, Packet packet, String privateKeyB64)
             throws NotAuthorizedException, TigaseDBException {
-        String token = privateKeyIdGenerator.generate(PRIVATE_KEY_ID_LEN).toUpperCase();
-        session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_DATA, privateKeyB64);
-        session.setData(NODE_PRIVATEKEY, KEY_PRIVATEKEY_TOKEN, token);
+        BareJID domain = session.getDomainAsJID().getBareJID();
+        String token = Utils.generateRandomNumericString(PRIVATE_KEY_ID_LEN).toUpperCase();
+        repo.putDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA, privateKeyB64);
         return packet.okResult(preparePrivateKeyStoredResponseForm(token), 0);
     }
 
@@ -790,6 +811,36 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         form.addField(Field.fieldTextSingle("token", token, "Private key identification token"));
 
         query.addChild(form.getElement());
+        return query;
+    }
+
+    private Packet retrievePrivateKey(XMPPResourceConnection session, NonAuthUserRepository repo, Packet packet, String token)
+            throws NotAuthorizedException, TigaseDBException, PacketErrorTypeException {
+
+        BareJID domain = session.getDomainAsJID().getBareJID();
+
+        // unique node in domain data formed by "privatekey" + the token
+        String privateKeyData = repo.getDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA, null);
+        if (StringUtils.isEmpty(privateKeyData))
+            return Authorization.NOT_AUTHORIZED.getResponseMessage(packet, ERROR_INVALID_PRIVKEY_TOKEN, false);
+
+        // this is supposed to be a one-time request
+        repo.removeDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA);
+
+        return packet.okResult(preparePrivateKeyResponseForm(privateKeyData), 0);
+    }
+
+    private Element preparePrivateKeyResponseForm(String privateKeyData) {
+        Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
+        Element account = new Element(IQ_ACCOUNT_ELEM_NAME, new String[] { "xmlns" }, new String[] { IQ_ACCOUNT_XMLNS });
+        Element privateKey = new Element(IQ_ACCOUNT_PRIVATEKEY_ELEM_NAME);
+        Element privKeyElem = new Element("keydata");
+
+        privKeyElem.setCData(privateKeyData);
+
+        privateKey.addChild(privKeyElem);
+        account.addChild(privateKey);
+        query.addChild(account);
         return query;
     }
 

@@ -16,19 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.kontalk.xmppserver.registration;
-
-import org.kontalk.xmppserver.util.Utils;
+package org.kontalk.xmppserver.util;
 
 
-/**
- * Interface to a validation code repository.
- * @author Daniele Ricci
- */
-public abstract class AbstractVerificationRepository implements VerificationRepository {
+public class Utils {
 
-    protected String verificationCode() {
-        return Utils.generateRandomNumericString(VERIFICATION_CODE_LENGTH);
+    public static String generateRandomNumericString(int length) {
+        StringBuilder buffer = new StringBuilder();
+        final String characters = "1234567890";
+
+        int charactersLength = characters.length();
+
+        for (int i = 0; i < length; i++) {
+            double index = Math.random() * charactersLength;
+            buffer.append(characters.charAt((int) index));
+        }
+        return buffer.toString();
     }
 
 }

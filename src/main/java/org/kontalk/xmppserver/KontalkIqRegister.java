@@ -75,7 +75,7 @@ import java.util.logging.Logger;
  * Inspired by the jabber:iq:register Tigase plugin.
  * @author Daniele Ricci
  */
-@TODO(note = "Support for multiple virtual hosts")
+@TODO(note = "Support for multiple virtual hosts; Expire private key tokens")
 public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc, ProbeListener {
 
     private static final String[][] ELEMENTS = {Iq.IQ_QUERY_PATH};
@@ -94,7 +94,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String IQ_ACCOUNT_ELEM_NAME = "account";
     private static final String IQ_ACCOUNT_XMLNS = "http://kontalk.org/protocol/register#account";
     private static final String IQ_ACCOUNT_PRIVATEKEY_ELEM_NAME = "privatekey";
-    private static final String IQ_ACCOUNT_JID_ELEM_NAME = "jid";
     private static final String IQ_ACCOUNT_TOKEN_ELEM_NAME = "token";
 
     // form fields
@@ -121,6 +120,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private static final String NODE_PRIVATEKEY = "kontalk/privatekey";
     private static final String KEY_PRIVATEKEY_DATA = "keydata";
+    private static final String KEY_PRIVATEKEY_JID = "jid";
 
     /** Default user expire time in seconds. */
     private static final long DEF_EXPIRE_SECONDS = TimeUnit.DAYS.toSeconds(30);
@@ -800,6 +800,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         BareJID domain = session.getDomainAsJID().getBareJID();
         String token = Utils.generateRandomNumericString(PRIVATE_KEY_ID_LEN).toUpperCase();
         repo.putDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA, privateKeyB64);
+        repo.putDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_JID, session.getBareJID().toString());
         return packet.okResult(preparePrivateKeyStoredResponseForm(token), 0);
     }
 
@@ -821,24 +822,45 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         // unique node in domain data formed by "privatekey" + the token
         String privateKeyData = repo.getDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA, null);
-        if (StringUtils.isEmpty(privateKeyData))
+        String userId = repo.getDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_JID, null);
+        if (StringUtils.isEmpty(privateKeyData) || StringUtils.isEmpty(userId))
             return Authorization.NOT_AUTHORIZED.getResponseMessage(packet, ERROR_INVALID_PRIVKEY_TOKEN, false);
+
+        // load public key from keyring, we'll return it to the client as well
+        String fingerprint = KontalkAuth.getUserFingerprint(session, BareJID.bareJIDInstanceNS(userId));
+        if (fingerprint == null)
+            return Authorization.NOT_AUTHORIZED.getResponseMessage(packet, ERROR_INVALID_PRIVKEY_TOKEN, false);
+
+        String publicKeyData;
+        try {
+            KontalkKeyring keyring = KontalkKeyring.getInstance(domain.toString());
+            byte[] _publicKeyData = keyring.exportKey(fingerprint);
+            publicKeyData = Base64.encode(_publicKeyData);
+        }
+        catch (Exception e) {
+            log.log(Level.WARNING, "Public key for user not found or not valid: " + userId, e);
+            return Authorization.NOT_AUTHORIZED.getResponseMessage(packet, ERROR_INVALID_PRIVKEY_TOKEN, false);
+        }
 
         // this is supposed to be a one-time request
         repo.removeDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_DATA);
+        repo.removeDomainTempData(domain, NODE_PRIVATEKEY + "/" + token, KEY_PRIVATEKEY_JID);
 
-        return packet.okResult(preparePrivateKeyResponseForm(privateKeyData), 0);
+        return packet.okResult(preparePrivateKeyResponseForm(privateKeyData, publicKeyData), 0);
     }
 
-    private Element preparePrivateKeyResponseForm(String privateKeyData) {
+    private Element preparePrivateKeyResponseForm(String privateKeyData, String publicKeyData) {
         Element query = new Element("query", new String[] { "xmlns" }, XMLNSS);
         Element account = new Element(IQ_ACCOUNT_ELEM_NAME, new String[] { "xmlns" }, new String[] { IQ_ACCOUNT_XMLNS });
         Element privateKey = new Element(IQ_ACCOUNT_PRIVATEKEY_ELEM_NAME);
-        Element privKeyElem = new Element("keydata");
+        Element privKeyElem = new Element("private");
+        Element pubKeyElem = new Element("public");
 
         privKeyElem.setCData(privateKeyData);
+        pubKeyElem.setCData(publicKeyData);
 
         privateKey.addChild(privKeyElem);
+        privateKey.addChild(pubKeyElem);
         account.addChild(privateKey);
         query.addChild(account);
         return query;

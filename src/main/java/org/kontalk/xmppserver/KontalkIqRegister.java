@@ -531,6 +531,20 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                         break;
                 }
             }
+            else {
+                if (session.isUserId(id)) {
+
+                    // It might be a registration request from transport for
+                    // example...
+                    Packet pack_res = packet.copyElementOnly();
+
+                    pack_res.setPacketTo(session.getConnectionId());
+                    results.offer(pack_res);
+                }
+                else {
+                    results.offer(packet.copyElementOnly());
+                }
+            }
         }
         catch (NotAuthorizedException e) {
             results.offer(Authorization.NOT_AUTHORIZED.getResponseMessage(packet,

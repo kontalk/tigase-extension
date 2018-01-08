@@ -127,6 +127,12 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private static final int PRIVATE_KEY_ID_LEN = 40;
 
+    /** Number of registration attempts to consider to be throttling. After this, timestamps will be checked. */
+    private static final int THROTTLING_ATTEMPTS_THRESHOLD = 3;
+
+    /** Minimum delay for coming out of throttling. This is used after the number of attempts is greater than {@link #THROTTLING_ATTEMPTS_THRESHOLD}. */
+    private static final long THROTTLING_MIN_DELAY = TimeUnit.MINUTES.toMillis(30);
+
     private static final RosterFlat rosterUtil = new RosterFlat();
     private static final SessionManagerHandler loginHandler = new SessionManagerHandler() {
         @Override
@@ -172,6 +178,16 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private long statsInvalidRegistrations;
     private Map<BareJID, RegistrationRequest> requests;
 
+    /** Stores useful data for detecting registration throttling. */
+    private static final class LastRegisterRequest {
+        /** Number of requests so far. */
+        public int attempts;
+        /** Timestamp of last request. */
+        public long lastTimestamp;
+    }
+
+    private Map<String, LastRegisterRequest> throttlingRequests;
+
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
     @Override
@@ -182,6 +198,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         requests = new HashMap<>();
+        throttlingRequests = new HashMap<>();
 
         // registration providers
         providers = new LinkedHashMap<>();
@@ -446,6 +463,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_INVALID_CODE, true));
                                 }
 
+                                // clear throttling
+                                clearThrottling(jid);
+
                                 break;
                             }
 
@@ -675,6 +695,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet startVerification(String domain, Packet packet, BareJID jid, String phone, PhoneNumberVerificationProvider provider)
             throws TigaseDBException, PacketErrorTypeException {
         try {
+            if (isThrottlingPhone(jid)) {
+                throw new VerificationRepository.AlreadyRegisteredException();
+            }
+
             String senderId = null;
             RegistrationRequest request = provider.startVerification(domain, phone);
             if (request != null) {
@@ -714,6 +738,37 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                     "Too many attempts.",
                     true);
         }
+    }
+
+    /** Returns true if the phone number has been trying to register too many times. */
+    private boolean isThrottlingPhone(BareJID jid) {
+        long now = System.currentTimeMillis();
+        LastRegisterRequest request = throttlingRequests.get(jid.toString());
+        try {
+            if (request != null) {
+                if (request.attempts >= THROTTLING_ATTEMPTS_THRESHOLD) {
+                    return (now - request.lastTimestamp) < THROTTLING_MIN_DELAY;
+                }
+                else {
+                    request.attempts++;
+                    return false;
+                }
+            }
+            else {
+                request = new LastRegisterRequest();
+                request.attempts = 1;
+                throttlingRequests.put(jid.toString(), request);
+
+                return false;
+            }
+        }
+        finally {
+            request.lastTimestamp = now;
+        }
+    }
+
+    private void clearThrottling(BareJID jid) {
+        throttlingRequests.remove(jid.toString());
     }
 
     private Element prepareSMSResponseForm(String from, PhoneNumberVerificationProvider provider, boolean canFallback) {

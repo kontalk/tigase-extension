@@ -18,17 +18,7 @@
 
 package org.kontalk.xmppserver;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.kontalk.xmppserver.push.*;
-
 import tigase.annotations.TODO;
 import tigase.conf.ConfigurationException;
 import tigase.db.DBInitException;
@@ -41,6 +31,15 @@ import tigase.xml.Element;
 import tigase.xmpp.BareJID;
 import tigase.xmpp.JID;
 import tigase.xmpp.StanzaType;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -57,7 +56,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     private static final String NODE = "http://kontalk.org/extensions/presence#push";
     private static final String XMLNS = NODE;
     private static final Element top_feature = new Element("feature", new String[] { "var" },  new String[] { NODE });
-    private static final List<Element> DISCO_FEATURES = Arrays.asList(top_feature);
+    private static final List<Element> DISCO_FEATURES = Collections.singletonList(top_feature);
 
     private static final int NUM_THREADS = 4;
     private static final int NUM_WORKERS = 50;
@@ -65,7 +64,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     private static final TimeUnit TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private ScheduledExecutorService executor;
-    private PushProvider provider = new GCMProvider();
+    private PushProvider provider;
     private PushRepository repository = new DataPushRepository();
 
     @Override
@@ -181,7 +180,31 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     @Override
     public void setProperties(Map<String, Object> props) throws ConfigurationException {
         super.setProperties(props);
+
+        if (provider == null) {
+            String providerClassName = (String) props.get("provider");
+            if (providerClassName != null) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Class<? extends PushProvider> providerClass =
+                            (Class<? extends PushProvider>) Class.forName(providerClassName);
+                    provider = providerClass.newInstance();
+                }
+                catch (ClassNotFoundException e) {
+                    throw new ConfigurationException("Provider class not found: " + providerClassName);
+                }
+                catch (InstantiationException | IllegalAccessException e) {
+                    throw new ConfigurationException("Unable to create provider instance for " + providerClassName);
+                }
+            }
+        }
+
+        // instantiate a dummy provider
+        if (provider == null)
+            provider = new DummyProvider();
+
         provider.init(props);
+
         try {
             repository.init(props);
         }

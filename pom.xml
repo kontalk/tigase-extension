@@ -60,7 +60,7 @@
     <dependency>
       <groupId>org.kontalk</groupId>
       <artifactId>tigase-server</artifactId>
-      <version>7.1.2</version>
+      <version>7.1.3</version>
       <scope>compile</scope>
     </dependency>
 
@@ -154,7 +154,7 @@
     <dependency>
       <groupId>org.kontalk</groupId>
       <artifactId>tigase-server</artifactId>
-      <version>7.1.2</version>
+      <version>7.1.3</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>

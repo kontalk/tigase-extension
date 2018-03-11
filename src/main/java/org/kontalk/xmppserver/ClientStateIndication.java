@@ -294,7 +294,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
 
     @Override
     public Element[] supStreamFeatures(XMPPResourceConnection session) {
-        return (session != null) ? FEATURES : null;
+        return (session != null && session.isAuthorized()) ? FEATURES : null;
     }
 
     static boolean isElement(Packet packet) {

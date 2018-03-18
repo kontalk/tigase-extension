@@ -18,10 +18,13 @@
 
 package org.kontalk.xmppserver;
 
+import tigase.conf.Configurable;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.server.Message;
 import tigase.server.Packet;
+import tigase.server.XMPPServer;
+import tigase.server.xmppclient.ClientConnectionManager;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 
@@ -45,6 +48,12 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
     private static final String[][] ELEMENTS = { { Message.ELEM_NAME } };
     private static final String[] XMLNSS = {XMLNS, Message.CLIENT_XMLNS};
 
+    /**
+     * How many milliseconds from the last received packet for considering a session as idle.
+     * If the session is idle a push notification is sent even if it's not considered closed.
+     */
+    private static final int IDLE_SESSION_MS = 30000;
+
     private String componentName;
 
     @Override
@@ -56,10 +65,7 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
 
     @Override
     public void postProcess(Packet packet, XMPPResourceConnection session, NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) {
-        if (session == null && packet.getElemName().equals(Message.ELEM_NAME) &&
-            packet.getType() == StanzaType.chat && (packet.getElement().getChild("body") != null ||
-                packet.getElement().getChild("request", "urn:xmpp:receipts") != null)) {
-
+        if ((session == null || isIdleSession(session)) && shouldNotify(packet)) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "Processing packet: {0}", packet);
             }
@@ -80,6 +86,28 @@ public class KontalkPushNotifications extends XMPPProcessor implements XMPPPostp
 
             packet.processedBy(ID);
         }
+    }
+
+    private boolean isIdleSession(XMPPResourceConnection session) {
+        ClientConnectionManager c2s = (ClientConnectionManager) XMPPServer.getComponent(Configurable.DEF_C2S_NAME);
+        try {
+            XMPPIOService io = c2s.getXMPPIOService(session.getConnectionId().getResource());
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "found IO service for session {0}: {1}", new Object[] { session, io });
+            }
+
+            return (io != null && (System.currentTimeMillis() - io.getLastXmppPacketReceiveTime()) > IDLE_SESSION_MS);
+        }
+        catch (NoConnectionIdException e) {
+            log.log(Level.WARNING, "unable to check for idle connection: {0}", session);
+            return false;
+        }
+    }
+
+    private boolean shouldNotify(Packet packet) {
+        return packet.getElemName().equals(Message.ELEM_NAME) &&
+                packet.getType() == StanzaType.chat && (packet.getElement().getChild("body") != null ||
+                packet.getElement().getChild("request", "urn:xmpp:receipts") != null);
     }
 
     @Override

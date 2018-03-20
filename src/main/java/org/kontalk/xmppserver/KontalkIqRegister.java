@@ -39,6 +39,7 @@ import org.kontalk.xmppserver.util.Utils;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
 import tigase.auth.mechanisms.SaslEXTERNAL;
+import tigase.conf.Configurable;
 import tigase.conf.ConfigurationException;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
@@ -339,7 +340,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         XMPPSession parentSession = new XMPPSession(jid.getLocalpart());
         XMPPResourceConnection session = new XMPPResourceConnection(JID
                 .jidInstanceNS(jid, "internal"), userRepository, userRepository, loginHandler);
-        SessionManager sessMan = (SessionManager) XMPPServer.getComponent("sess-man");
+        SessionManager sessMan = (SessionManager) XMPPServer.getComponent(Configurable.DEF_SM_NAME);
         try {
             session.setDomain(sessMan.getVHostItem(jid.getDomain()));
             session.setParentSession(parentSession);
@@ -1082,7 +1083,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             results.offer(errorUserExists(regInfo.packet));
         }
         else {
-            SessionManager sm = (SessionManager) XMPPServer.getComponent("sess-man");
+            SessionManager sm = (SessionManager) XMPPServer.getComponent(Configurable.DEF_SM_NAME);
             try {
                 Packet result = startVerification(sm.getDefVHostItem().getDomain(), regInfo.packet, regInfo.connectionId,
                         regInfo.jid, regInfo.phone, regInfo.fallback, regInfo.challenge);

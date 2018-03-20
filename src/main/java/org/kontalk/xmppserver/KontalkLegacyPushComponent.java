@@ -69,6 +69,8 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
 
     @Override
     public void processPacket(Packet packet) {
+        ensurePushProvider();
+
         // registration
         if (packet.getElemName().equals(Iq.ELEM_NAME) && packet.getType() == StanzaType.set) {
             Element register = packet.getElement().getChild("register", XMLNS);
@@ -144,6 +146,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
             @Override
             public void run() {
                 try {
+                    ensurePushProvider();
                     provider.sendPushNotification(user, info);
                 }
                 catch (IOException e) {
@@ -181,35 +184,37 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     public void setProperties(Map<String, Object> props) throws ConfigurationException {
         super.setProperties(props);
 
-        if (provider == null) {
-            String providerClassName = (String) props.get("provider");
-            if (providerClassName != null) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    Class<? extends PushProvider> providerClass =
-                            (Class<? extends PushProvider>) Class.forName(providerClassName);
-                    provider = providerClass.newInstance();
-                }
-                catch (ClassNotFoundException e) {
-                    throw new ConfigurationException("Provider class not found: " + providerClassName);
-                }
-                catch (InstantiationException | IllegalAccessException e) {
-                    throw new ConfigurationException("Unable to create provider instance for " + providerClassName);
-                }
+        String providerClassName = (String) props.get("provider");
+        if (providerClassName != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                Class<? extends PushProvider> providerClass =
+                        (Class<? extends PushProvider>) Class.forName(providerClassName);
+                provider = providerClass.newInstance();
+                provider.init(props);
+            }
+            catch (ClassNotFoundException e) {
+                // will create a dummy provider later
+                provider = null;
+                throw new ConfigurationException("Provider class not found: " + providerClassName);
+            }
+            catch (InstantiationException | IllegalAccessException e) {
+                throw new ConfigurationException("Unable to create provider instance for " + providerClassName);
             }
         }
-
-        // instantiate a dummy provider
-        if (provider == null)
-            provider = new DummyProvider();
-
-        provider.init(props);
 
         try {
             repository.init(props);
         }
         catch (DBInitException e) {
             throw new ConfigurationException("unable to initialize push data repository", e);
+        }
+    }
+
+    private void ensurePushProvider() {
+        if (provider == null) {
+            provider = new DummyProvider();
+            // no init call necessary for dummy provider
         }
     }
 
@@ -226,6 +231,7 @@ public class KontalkLegacyPushComponent extends AbstractMessageReceiver {
     @Override
     public List<Element> getDiscoItems(String node, JID jid, JID from) {
         if (NODE.equals(node)) {
+            ensurePushProvider();
             List<Element> list = new ArrayList<Element>(1);
             list.add(new Element("item", new String[]{"node", "jid", "name"},
                     new String[]{ provider.getNode(), provider.getJidPrefix() + getDefVHostItem().getDomain(), provider.getDescription() }));

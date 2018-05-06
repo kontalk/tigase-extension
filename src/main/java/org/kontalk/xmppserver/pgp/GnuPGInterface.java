@@ -115,7 +115,7 @@ public class GnuPGInterface {
                 throw new PGPException("invalid key data");
 
             String fingerprint = PGPUtils.getFingerprint(masterKey);
-            if (invoke("--yes", "--batch", "-u", signKeyId, "--sign-key", fingerprint) != 0)
+            if (invoke("--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict", "--sign-key", fingerprint) != 0)
                 throw new PGPException("error signing key");
 
             byte[] signedKey = exportKey(fingerprint);

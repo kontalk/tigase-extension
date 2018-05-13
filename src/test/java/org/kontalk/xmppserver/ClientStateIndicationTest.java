@@ -133,11 +133,10 @@ public class ClientStateIndicationTest extends ProcessorTestCase {
 
         results.clear();
         results.offer(m);
-        Packet[] expected = results.toArray(new Packet[results.size()]);
         results.clear();
         csi.stopped(session1, results, new HashMap<>());
         Packet[] processed = results.toArray(new Packet[results.size()]);
-        Assert.assertArrayEquals(expected, processed);
+        Assert.assertEquals(0, processed.length);
     }
 
     private Queue<Packet> enableCSI(XMPPResourceConnection session) throws TigaseStringprepException, XMPPException {

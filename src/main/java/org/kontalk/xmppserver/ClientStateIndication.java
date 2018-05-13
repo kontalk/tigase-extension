@@ -227,6 +227,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             return true;
         }
 
+        /*
         if (isDeliveryReceipt(packet)) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "Delaying delivery receipt {0}", packet);
@@ -234,6 +235,7 @@ public class ClientStateIndication extends XMPPProcessorAbstract implements XMPP
             queue.putMessage((Message) packet);
             return true;
         }
+        */
 
         if (isChatState(packet)) {
             if (log.isLoggable(Level.FINEST)) {

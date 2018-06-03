@@ -337,7 +337,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             throws PolicyViolationException, NoConnectionIdException, NotAuthorizedException, TigaseDBException, TigaseStringprepException {
         Queue<Packet> results = new LinkedList<>();
         unsubscribeFromRoster(sessMan, sessMan.getVHostItem(jid.getDomain()), jid, results);
-        sessMan.addPackets(results);
+
+        for (Packet p : results) {
+            sessMan.addOutPacket(p);
+        }
     }
 
     /** Sends an unsubscribed stanza to all user in the given user's roster. */

@@ -47,7 +47,10 @@ import tigase.db.UserExistsException;
 import tigase.db.UserNotFoundException;
 import tigase.form.Field;
 import tigase.form.Form;
-import tigase.server.*;
+import tigase.server.Iq;
+import tigase.server.Packet;
+import tigase.server.Presence;
+import tigase.server.XMPPServer;
 import tigase.server.xmppsession.SessionManager;
 import tigase.server.xmppsession.SessionManagerHandler;
 import tigase.stats.StatisticsList;
@@ -57,7 +60,6 @@ import tigase.vhosts.VHostItem;
 import tigase.xml.Element;
 import tigase.xmpp.*;
 import tigase.xmpp.impl.PresenceSubscription;
-import tigase.xmpp.impl.roster.RosterAbstract;
 import tigase.xmpp.impl.roster.RosterFlat;
 
 import java.io.IOException;
@@ -327,16 +329,16 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             SessionManager sessMan = (SessionManager) XMPPServer.getComponent(Configurable.DEF_SM_NAME);
             unsubscribeFromRoster(sessMan, jid);
         }
-        catch (NotAuthorizedException | TigaseStringprepException | PolicyViolationException | NoConnectionIdException e) {
+        catch (NotAuthorizedException e) {
             log.log(Level.WARNING, "unable to unsubscribe from roster of " + jid, e);
         }
         userRepository.removeUser(jid);
     }
 
     private void unsubscribeFromRoster(SessionManager sessMan, BareJID jid)
-            throws PolicyViolationException, NoConnectionIdException, NotAuthorizedException, TigaseDBException, TigaseStringprepException {
+            throws NotAuthorizedException, TigaseDBException {
         Queue<Packet> results = new LinkedList<>();
-        unsubscribeFromRoster(sessMan, sessMan.getVHostItem(jid.getDomain()), jid, results);
+        unsubscribeFromRoster(sessMan.getVHostItem(jid.getDomain()), jid, results);
 
         for (Packet p : results) {
             sessMan.addOutPacket(p);
@@ -344,8 +346,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     }
 
     /** Sends an unsubscribed stanza to all user in the given user's roster. */
-    private void unsubscribeFromRoster(SessionManager sessMan, VHostItem domain, BareJID jid, Queue<Packet> results)
-            throws NotAuthorizedException, TigaseDBException, TigaseStringprepException, PolicyViolationException, NoConnectionIdException {
+    private void unsubscribeFromRoster(VHostItem domain, BareJID jid, Queue<Packet> results)
+            throws NotAuthorizedException, TigaseDBException {
         // prepare session object for retrieving the roster
         XMPPSession parentSession = new XMPPSession(jid.getLocalpart());
         XMPPResourceConnection session = new XMPPResourceConnection(JID
@@ -363,64 +365,17 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         if (buddies != null && buddies.length > 0) {
             // we are not in a processing queue so we need direct access to the SessionManager
             for (JID buddy : buddies) {
-                // unsubscribe from user manually
-                XMPPSession parentBuddySession = new XMPPSession(buddy.getLocalpart());
-                XMPPResourceConnection buddySession = new XMPPResourceConnection(buddy, userRepository, userRepository, loginHandler);
                 try {
-                    buddySession.setDomain(domain.getVhost().getDomain().equals(jid.getDomain()) ? domain : null);
-                    buddySession.setParentSession(parentBuddySession);
-                    buddySession.authorizeJID(jid, false);
+                    Packet packet = Packet.packetInstance(Presence.ELEM_NAME,
+                            jid.toString(), buddy.getBareJID().toString(), StanzaType.unsubscribed);
+                    packet.setXMLNS(PresenceSubscription.CLIENT_XMLNS);
+                    results.offer(packet);
                 }
                 catch (TigaseStringprepException e) {
-                    throw new TigaseDBException("Unable to authorize buddy session", e);
-                }
-
-                if (unsubscribeFromUser(session, buddySession, results)) {
-                    // the real ones
-                    parentBuddySession = sessMan.getSession(buddy.getBareJID());
-                    if (parentBuddySession != null) {
-                        buddySession.setParentSession(parentBuddySession);
-                        rosterUtil.removeBuddy(buddySession, JID.jidInstance(jid));
-                    }
+                    log.log(Level.WARNING, "Unable to create unsubscription packet", e);
                 }
             }
         }
-    }
-
-    /**
-     * Unsubscribe the user of the given session from a contact in the roster. It does so by silently removing the
-     * roster entry from the user's roster and sending an unsubscribed stanza to the removed contact so will sync its
-     * roster.
-     * @param session the session of the user we are removing the roster buddy from
-     * @param buddySession session of buddy to be removed
-     */
-    private boolean unsubscribeFromUser(XMPPResourceConnection session, XMPPResourceConnection buddySession, Queue<Packet> results)
-            throws NotAuthorizedException, TigaseDBException, TigaseStringprepException, PolicyViolationException, NoConnectionIdException {
-        JID user = session.getJID();
-        JID buddy = buddySession.getJID();
-        // remove buddy from the user's roster
-        rosterUtil.removeBuddy(session, buddy);
-
-        RosterAbstract.SubscriptionType curr_sub = rosterUtil.getBuddySubscription(buddySession, user);
-        if (curr_sub != null) {
-            // First forward the request to the client to make sure it stays in sync
-            // with the server. This should be done only with auto-authorization disabled
-            Packet forward_p = Packet.packetInstance(new Element(Presence.ELEM_NAME));
-            forward_p.initVars(user, buddy);
-            forward_p.getElement().setAttribute(Presence.TYPE_ATT, StanzaType.unsubscribed.toString());
-            forward_p.setXMLNS(PresenceSubscription.CLIENT_XMLNS);
-            results.offer(forward_p);
-
-            boolean result = rosterUtil.updateBuddySubscription(buddySession, RosterAbstract.PresenceType.in_unsubscribed, user) ||
-                    rosterUtil.updateBuddySubscription(buddySession, RosterAbstract.PresenceType.out_unsubscribed, user);
-
-            // send roster push
-            rosterUtil.updateBuddyChange(buddySession, results, rosterUtil.getBuddyItem(buddySession, buddy));
-
-            return result;
-        }
-
-        return false;
     }
 
     @Override

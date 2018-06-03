@@ -411,8 +411,13 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             forward_p.setXMLNS(PresenceSubscription.CLIENT_XMLNS);
             results.offer(forward_p);
 
-            return rosterUtil.updateBuddySubscription(buddySession, RosterAbstract.PresenceType.in_unsubscribed, user) ||
+            boolean result = rosterUtil.updateBuddySubscription(buddySession, RosterAbstract.PresenceType.in_unsubscribed, user) ||
                     rosterUtil.updateBuddySubscription(buddySession, RosterAbstract.PresenceType.out_unsubscribed, user);
+
+            // send roster push
+            rosterUtil.updateBuddyChange(buddySession, results, rosterUtil.getBuddyItem(buddySession, buddy));
+
+            return result;
         }
 
         return false;

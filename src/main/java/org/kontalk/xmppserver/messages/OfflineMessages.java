@@ -18,7 +18,6 @@
 
 package org.kontalk.xmppserver.messages;
 
-import tigase.db.MsgRepositoryIfc;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
 import tigase.db.UserNotFoundException;
@@ -40,7 +39,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static org.kontalk.xmppserver.messages.OfflineMessages.*;
+import static org.kontalk.xmppserver.messages.OfflineMessages.ID;
+import static org.kontalk.xmppserver.messages.OfflineMessages.XMLNS;
+import static tigase.xmpp.impl.OfflineMessages.*;
 
 
 /**
@@ -77,13 +78,22 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
 
     private Timer taskTimer;
 
-    private MsgRepository msgRepo = new JDBCMsgRepository();
+    private MsgRepository msgRepo;
     private Message message = new Message();
     private final DateFormat formatter;
 
     {
         this.formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
         this.formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
+
+    public OfflineMessages() {
+        msgRepo = new JDBCMsgRepository();
+    }
+
+    // for test only
+    OfflineMessages(MsgRepository msgRepo) {
+        this.msgRepo = msgRepo;
     }
 
     @Override
@@ -95,7 +105,6 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
         String uri = (String) settings.get("db-uri");
-        msgRepo.initRepository(uri, null);
 
         try {
             messageExpire = (int) settings.get("message-expire");
@@ -158,21 +167,10 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                     if ( log.isLoggable( Level.FINER ) ){
                         log.finer( "Sending offline messages: " + packets.size() );
                     }
-                    waitForPresence(session, 250);
                     results.addAll( packets );
                 }
             } catch ( TigaseDBException e ) {
                 log.info( "Something wrong, DB problem, cannot load offline messages. " + e );
-            }
-        }
-    }
-
-    private void waitForPresence(XMPPResourceConnection session, int millis) {
-        if (session.getPresence() == null || session.getPriority() <= 0) {
-            try {
-                Thread.sleep(millis);
-            }
-            catch (InterruptedException ignored) {
             }
         }
     }
@@ -182,6 +180,11 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
                             Queue<Packet> results, Map<String, Object> settings) {
         if (session == null || !message.hasConnectionForMessageDelivery(session)) {
             try {
+                if (packet.getElemName() == tigase.server.Message.ELEM_NAME
+                        && packet.getStanzaTo() != null && packet.getStanzaTo().getResource() != null) {
+                    return;
+                }
+
                 if (session != null && packet.getStanzaTo() != null && !session.isUserId(packet.getStanzaTo().getBareJID()))
                     return;
 
@@ -203,6 +206,19 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
         }
     }
 
+    protected boolean isAllowedForOfflineStorage(Packet pac) {
+        StanzaType type = pac.getType();
+        return ( pac.getElemName() == "message"
+                && ( ( pac.getElemCDataStaticStr( tigase.server.Message.MESSAGE_BODY_PATH ) != null )
+                || ( pac.getElement().getChild("request", "urn:xmpp:receipts") != null )
+                || ( pac.getElement().getChild("received", "urn:xmpp:receipts") != null )
+                || ( pac.getElement().getChild("x", "jabber:x:signed") != null) )
+                && ( ( type == null ) || ( type == StanzaType.normal ) || ( type == StanzaType.chat ) ) )
+                || ( pac.getElemName() == "presence"
+                && ( ( type == StanzaType.subscribe ) || ( type == StanzaType.subscribed )
+                || ( type == StanzaType.unsubscribe ) || ( type == StanzaType.unsubscribed ) ) );
+    }
+
     /**
      * Method determines whether offline messages should be loaded - the process
      * should be run only once per user session and only for available/null
@@ -217,7 +233,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
      * @return {@code true} if the messages should be loaded, {@code false}
      *         otherwise.
      */
-    private boolean loadOfflineMessages( Packet packet, XMPPResourceConnection conn ) {
+    boolean loadOfflineMessages( Packet packet, XMPPResourceConnection conn ) {
 
         // If the user session is null or the user is anonymous just
         // ignore it.
@@ -273,7 +289,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
      *
      * @param session user session which keeps all the user session data and also
      *             gives an access to the user's repository data.
-     * @param repo an implementation of {@link MsgRepositoryIfc} interface
+     * @param repo an implementation of {@link MsgRepository} interface
      *
      *
      * @return a {@link Queue} of {@link Packet} objects based on all stored
@@ -342,20 +358,10 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
      */
     public boolean savePacketForOffLineUser(Packet pac, MsgRepository repo)
             throws TigaseDBException {
-        StanzaType type = pac.getType();
-
         // save only:
         // message stanza with either {@code <body>} or {@code <event>} child element and only of type normal, chat
         // presence stanza of type subscribe, subscribed, unsubscribe and unsubscribed
-        if ( ( pac.getElemName().equals( "message" )
-                && ( ( pac.getElemCDataStaticStr( tigase.server.Message.MESSAGE_BODY_PATH ) != null )
-                || ( pac.getElement().getChild("request", "urn:xmpp:receipts") != null )
-                || ( pac.getElement().getChild("received", "urn:xmpp:receipts") != null )
-                || ( pac.getElement().getChild("x", "jabber:x:signed") != null) )
-                && ( ( type == null ) || ( type == StanzaType.normal ) || ( type == StanzaType.chat ) ) )
-                || ( pac.getElemName().equals( "presence" )
-                && ( ( type == StanzaType.subscribe ) || ( type == StanzaType.subscribed )
-                || ( type == StanzaType.unsubscribe ) || ( type == StanzaType.unsubscribed ) ) ) ){
+        if (isAllowedForOfflineStorage(pac)){
             if ( log.isLoggable( Level.FINEST ) ){
                 log.log( Level.FINEST, "Storing packet for offline user: {0}", pac );
             }

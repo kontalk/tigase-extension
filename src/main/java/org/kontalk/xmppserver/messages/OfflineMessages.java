@@ -41,7 +41,6 @@ import java.util.logging.Logger;
 
 import static org.kontalk.xmppserver.messages.OfflineMessages.ID;
 import static org.kontalk.xmppserver.messages.OfflineMessages.XMLNS;
-import static tigase.xmpp.impl.OfflineMessages.*;
 
 
 /**
@@ -105,6 +104,7 @@ public class OfflineMessages extends AnnotatedXMPPProcessor
     public void init(Map<String, Object> settings) throws TigaseDBException {
         super.init(settings);
         String uri = (String) settings.get("db-uri");
+        msgRepo.initRepository(uri, null);
 
         try {
             messageExpire = (int) settings.get("message-expire");

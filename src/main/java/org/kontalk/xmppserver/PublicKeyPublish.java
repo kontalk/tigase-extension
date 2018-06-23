@@ -51,26 +51,51 @@ public class PublicKeyPublish extends XMPPProcessorAbstract {
         return ID;
     }
 
-    /** Request sent to server. Returns the server public key. */
+    /** Request sent to server. Returns the server public key or our own key. */
     @Override
     public void processFromUserToServerPacket(JID connectionId, Packet packet, XMPPResourceConnection session,
                                               NonAuthUserRepository repo, Queue<Packet> results, Map<String, Object> settings) throws PacketErrorTypeException {
 
         if (packet.getType() == StanzaType.get) {
             try {
-                JID domain = session.getDomainAsJID();
-                byte[] publicKeyData = KontalkKeyring.getInstance(domain.toString())
-                        .getSecretPublicKey().getEncoded();
-                Element pubkey = new Element("pubkey");
-                pubkey.setXMLNS(XMLNS);
-                pubkey.setCData(Base64.encode(publicKeyData));
-                results.offer(packet.okResult(pubkey, 0));
-                packet.processedBy(ID);
+                if (packet.getStanzaTo() != null && session.isUserId(packet.getStanzaTo().getBareJID())) {
+                    // asking for our own key
+                    sendPublicKey(session, packet, results);
+                }
+                else {
+                    // asking for the server key
+                    JID domain = session.getDomainAsJID();
+                    byte[] publicKeyData = KontalkKeyring.getInstance(domain.toString())
+                            .getSecretPublicKey().getEncoded();
+                    Element pubkey = new Element("pubkey");
+                    pubkey.setXMLNS(XMLNS);
+                    pubkey.setCData(Base64.encode(publicKeyData));
+                    results.offer(packet.okResult(pubkey, 0));
+                    packet.processedBy(ID);
+                }
             }
             catch (IOException | PGPException e) {
                 log.log(Level.WARNING, "Unable retrieve server public keyring");
                 results.offer((Authorization.INTERNAL_SERVER_ERROR.getResponseMessage(packet,
                         "Server public key not available.", true)));
+            }
+            catch (TigaseDBException e) {
+                log.log( Level.WARNING, "Database problem, please contact admin:", e );
+                try {
+                    results.offer( Authorization.INTERNAL_SERVER_ERROR.getResponseMessage( packet,
+                            "Database access problem, please contact administrator.", true ) );
+                }
+                catch (PacketErrorTypeException pe) {
+                    // ignored
+                }
+            }
+            catch (NotAuthorizedException e) {
+                try {
+                    results.offer(Authorization.NOT_AUTHORIZED.getResponseMessage(packet, "Not authorized", true));
+                }
+                catch (PacketErrorTypeException pe) {
+                    // ignored
+                }
             }
         }
         else {
@@ -121,7 +146,6 @@ public class PublicKeyPublish extends XMPPProcessorAbstract {
 
     private void sendPublicKey(XMPPResourceConnection session, Packet packet, Queue<Packet> results)
             throws PacketErrorTypeException, TigaseDBException {
-        Element pubkey = null;
 
         // retrieve fingerprint from repository and send key data
         BareJID user = packet.getStanzaTo().getBareJID();
@@ -131,7 +155,7 @@ public class PublicKeyPublish extends XMPPProcessorAbstract {
                 byte[] publicKeyData = KontalkKeyring.
                         getInstance(session.getDomainAsJID().toString()).exportKey(fingerprint);
                 if (publicKeyData != null) {
-                    pubkey = new Element("pubkey");
+                    Element pubkey = new Element("pubkey");
                     pubkey.setXMLNS(XMLNS);
                     pubkey.setCData(Base64.encode(publicKeyData));
                     results.offer(packet.okResult(pubkey, 0));

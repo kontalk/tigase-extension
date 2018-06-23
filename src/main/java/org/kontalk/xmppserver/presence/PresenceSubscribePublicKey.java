@@ -69,8 +69,7 @@ public class PresenceSubscribePublicKey extends XMPPProcessor implements
 
             try {
                 PresenceType presenceType = roster_util.getPresenceType(session, packet);
-                if (presenceType == PresenceType.in_subscribe &&
-                        !roster_util.isSubscribedFrom(session, packet.getStanzaFrom())) {
+                if (presenceType == PresenceType.in_subscribe) {
 
                     // check if pubkey element was already added
                     if (!hasPublicKey(packet)) {

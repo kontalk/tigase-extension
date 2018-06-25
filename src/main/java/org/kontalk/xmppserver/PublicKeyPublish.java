@@ -22,6 +22,7 @@ import org.bouncycastle.openpgp.PGPException;
 import org.kontalk.xmppserver.auth.KontalkAuth;
 import tigase.db.NonAuthUserRepository;
 import tigase.db.TigaseDBException;
+import tigase.db.UserNotFoundException;
 import tigase.server.Iq;
 import tigase.server.Packet;
 import tigase.util.Base64;
@@ -149,7 +150,13 @@ public class PublicKeyPublish extends XMPPProcessorAbstract {
 
         // retrieve fingerprint from repository and send key data
         BareJID user = packet.getStanzaTo().getBareJID();
-        String fingerprint = KontalkAuth.getUserFingerprint(session, user);
+        String fingerprint;
+        try {
+            fingerprint = KontalkAuth.getUserFingerprint(session, user);
+        }
+        catch (UserNotFoundException e) {
+            fingerprint = null;
+        }
         if (fingerprint != null) {
             try {
                 byte[] publicKeyData = KontalkKeyring.
@@ -167,13 +174,13 @@ public class PublicKeyPublish extends XMPPProcessorAbstract {
             catch (IOException | PGPException e) {
                 log.log(Level.WARNING, "Unable to export key for user {0} (fingerprint: {1})",
                         new Object[]{user, fingerprint});
-                results.offer( Authorization.INTERNAL_SERVER_ERROR.getResponseMessage( packet,
-                        "Unable to process public key.", true) );
+                results.offer(Authorization.INTERNAL_SERVER_ERROR.getResponseMessage(packet,
+                        "Unable to process public key.", true));
             }
         }
         else {
-            results.offer( Authorization.ITEM_NOT_FOUND.getResponseMessage( packet,
-                    "Public key not found.", true) );
+            results.offer(Authorization.ITEM_NOT_FOUND.getResponseMessage(packet,
+                    "Public key not found.", true));
         }
     }
 

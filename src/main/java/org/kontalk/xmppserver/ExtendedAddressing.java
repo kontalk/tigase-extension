@@ -54,7 +54,14 @@ public class ExtendedAddressing extends AbstractMessageReceiver {
                                 Packet fwd = packet.copyElementOnly();
                                 fwd.initVars(packet.getStanzaFrom(), to);
                                 stripAddresses(fwd);
-                                addOutPacket(fwd);
+                                if (!addOutPacket(fwd)) {
+                                    try {
+                                        addOutPacket(Authorization.RESOURCE_CONSTRAINT
+                                                .getResponseMessage(packet, "Queue overflow", false));
+                                    }
+                                    catch (PacketErrorTypeException ignored) {
+                                    }
+                                }
                             }
                             catch (TigaseStringprepException e) {
                                 log.log(Level.WARNING, "invalid JID: " + jid);

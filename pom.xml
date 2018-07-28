@@ -135,11 +135,6 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>com.google.gcm</groupId>
-      <artifactId>gcm-server</artifactId>
-      <version>1.0.0</version>
-    </dependency>
-    <dependency>
       <groupId>com.nexmo</groupId>
       <artifactId>client</artifactId>
       <version>2.0.2</version>
@@ -149,6 +144,12 @@
       <artifactId>groovy-all</artifactId>
       <version>2.4.7</version>
       <scope>compile</scope>
+    </dependency>
+    <!-- for GCM module -->
+    <dependency>
+      <groupId>com.googlecode.json-simple</groupId>
+      <artifactId>json-simple</artifactId>
+      <version>1.1.1</version>
     </dependency>
 
     <dependency>

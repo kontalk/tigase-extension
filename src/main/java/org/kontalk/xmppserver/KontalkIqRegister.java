@@ -109,6 +109,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String FORM_FIELD_PRIVATEKEY = "privatekey";
     /** Form field to request a specific challenge type. */
     private static final String FORM_FIELD_CHALLENGE = "challenge";
+    private static final String FORM_FIELD_ACCEPT_TERMS = "accept-terms";
+    private static final String FORM_FIELD_TERMS = "terms";
 
     private static final Element[] FEATURES = {new Element("register", new String[]{"xmlns"},
             new String[]{"http://jabber.org/features/iq-register"})};
@@ -120,6 +122,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private static final String ERROR_INVALID_REVOKED = "Invalid revocation key.";
     private static final String ERROR_INVALID_PUBKEY = "Invalid public key.";
     private static final String ERROR_INVALID_PRIVKEY_TOKEN = "Invalid private key token.";
+    private static final String ERROR_TERMS_NOT_ACCEPTED = "Service terms were not accepted.";
 
     private static final String NODE_PRIVATEKEY = "kontalk/privatekey";
     private static final String KEY_PRIVATEKEY_DATA = "keydata";
@@ -197,6 +200,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
+    private String serviceTermsURL;
+
     @Override
     public String id() {
         return ID;
@@ -268,6 +273,8 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         // user repository for periodical purge of old users
         String uri = (String) settings.get("db-uri");
         userRepository.initRepository(uri, null);
+
+        serviceTermsURL = (String) settings.get("service-terms-url");
 
         // delete expired users once a day
         long timeout = TimeUnit.DAYS.toMillis(1);
@@ -426,31 +433,45 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                             // phone number: verification code
                             String phone = form.getAsString(FORM_FIELD_PHONE);
                             if (!session.isAuthorized() && phone != null) {
-                                boolean force;
-                                try {
-                                    force = form.getAsBoolean(FORM_FIELD_FORCE);
-                                }
-                                catch (NullPointerException e) {
-                                    force = false;
-                                }
-                                boolean fallback;
-                                try {
-                                    fallback = form.getAsBoolean(FORM_FIELD_FALLBACK);
-                                }
-                                catch (NullPointerException e) {
-                                    fallback = false;
-                                }
-                                String challenge;
-                                try {
-                                    challenge = form.getAsString(FORM_FIELD_CHALLENGE);
-                                }
-                                catch (NullPointerException e) {
-                                    challenge = null;
+                                Packet response = null;
+                                if (serviceTermsURL != null) {
+                                    Boolean acceptedTerms = form.getAsBoolean("accept-terms");
+                                    if (acceptedTerms == null || !acceptedTerms) {
+                                        // terms not accepted
+                                        response = Authorization.BAD_REQUEST
+                                                .getResponseMessage(packet, ERROR_TERMS_NOT_ACCEPTED, true);
+                                    }
                                 }
 
-                                Packet response = registerPhone(session, packet, phone, force, fallback, challenge, results);
+                                if (response == null) {
+                                    boolean force;
+                                    try {
+                                        force = form.getAsBoolean(FORM_FIELD_FORCE);
+                                    }
+                                    catch (NullPointerException e) {
+                                        force = false;
+                                    }
+                                    boolean fallback;
+                                    try {
+                                        fallback = form.getAsBoolean(FORM_FIELD_FALLBACK);
+                                    }
+                                    catch (NullPointerException e) {
+                                        fallback = false;
+                                    }
+                                    String challenge;
+                                    try {
+                                        challenge = form.getAsString(FORM_FIELD_CHALLENGE);
+                                    }
+                                    catch (NullPointerException e) {
+                                        challenge = null;
+                                    }
+
+                                    response = registerPhone(session, packet, phone, force, fallback, challenge, results);
+                                }
+
                                 statsRegistrationAttempts++;
                                 packet.processedBy(ID);
+
                                 if (response != null)
                                     results.offer(response);
                                 break;
@@ -612,13 +633,13 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         Form form = new Form("form", null, null);
 
         form.addField(Field.fieldHidden("FORM_TYPE", XMLNSS[0]));
-        Field phone = Field.fieldTextSingle("phone", null, "Phone number");
+        Field phone = Field.fieldTextSingle(FORM_FIELD_PHONE, null, "Phone number");
         phone.setRequired(true);
         form.addField(phone);
 
-        form.addField(Field.fieldTextSingle("force", null, "Force registration"));
-        form.addField(Field.fieldBoolean("fallback", null, "Fallback"));
-        form.addField(Field.fieldListSingle("challenge", null, "Challenge type",
+        form.addField(Field.fieldTextSingle(FORM_FIELD_FORCE, null, "Force registration"));
+        form.addField(Field.fieldBoolean(FORM_FIELD_FALLBACK, null, "Fallback"));
+        form.addField(Field.fieldListSingle(FORM_FIELD_CHALLENGE, null, "Challenge type",
             new String[] {
                 "Verification code",
                 "Missed call",
@@ -629,6 +650,11 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 PhoneNumberVerificationProvider.CHALLENGE_MISSED_CALL,
                 PhoneNumberVerificationProvider.CHALLENGE_CALLER_ID,
             }));
+
+        if (serviceTermsURL != null) {
+            form.addField(Field.fieldBoolean(FORM_FIELD_ACCEPT_TERMS, null, "Accept terms of service?"));
+            form.addField(Field.fieldHidden(FORM_FIELD_TERMS, serviceTermsURL));
+        }
 
         query.addChild(form.getElement());
 

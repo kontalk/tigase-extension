@@ -202,6 +202,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private String serviceTermsURL;
 
+    /** True to disable security checks (throttling, etc.). */
+    private boolean disableSecurity;
+
     @Override
     public String id() {
         return ID;
@@ -275,6 +278,11 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         userRepository.initRepository(uri, null);
 
         serviceTermsURL = (String) settings.get("service-terms-url");
+
+        Boolean _disableSecurity = (Boolean) settings.get("disable-security");
+        if (_disableSecurity != null) {
+            disableSecurity = _disableSecurity;
+        }
 
         // delete expired users once a day
         long timeout = TimeUnit.DAYS.toMillis(1);
@@ -740,7 +748,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet startVerification(String domain, Packet packet, JID connectionId, BareJID jid, String phone, PhoneNumberVerificationProvider provider)
             throws TigaseDBException, PacketErrorTypeException {
         try {
-            if (isThrottlingPhone(jid) || isThrottlingClient(connectionId)) {
+            if (!disableSecurity && (isThrottlingPhone(jid) || isThrottlingClient(connectionId))) {
                 throw new VerificationRepository.AlreadyRegisteredException();
             }
 

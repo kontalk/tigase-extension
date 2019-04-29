@@ -18,6 +18,8 @@
 
 package org.kontalk.xmppserver;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
@@ -196,7 +198,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         public long lastTimestamp;
     }
 
-    private Map<String, LastRegisterRequest> throttlingRequests;
+    private Cache<String, LastRegisterRequest> throttlingRequests;
 
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
@@ -213,7 +215,10 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         requests = new HashMap<>();
-        throttlingRequests = new HashMap<>();
+        throttlingRequests = CacheBuilder.newBuilder()
+                .expireAfterAccess(THROTTLING_MIN_DELAY, TimeUnit.MILLISECONDS)
+                .maximumSize(100000)
+                .build();
 
         // registration providers
         providers = new LinkedHashMap<>();
@@ -504,14 +509,14 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     statsRegisteredUsers++;
                                     packet.processedBy(ID);
                                     results.offer(response);
+
+                                    // clear throttling
+                                    clearThrottling(jid, session.getConnectionId());
                                 }
                                 else {
                                     // invalid verification code
                                     results.offer(Authorization.BAD_REQUEST.getResponseMessage(packet, ERROR_INVALID_CODE, true));
                                 }
-
-                                // clear throttling
-                                clearThrottling(jid, session.getConnectionId());
 
                                 break;
                             }
@@ -807,9 +812,9 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         return false;
     }
 
-    private boolean isThrottling(String id) {
+    private synchronized boolean isThrottling(String id) {
         long now = System.currentTimeMillis();
-        LastRegisterRequest request = throttlingRequests.get(id);
+        LastRegisterRequest request = throttlingRequests.getIfPresent(id);
         try {
             if (request != null) {
                 if (request.attempts >= THROTTLING_ATTEMPTS_THRESHOLD) {
@@ -823,22 +828,21 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
             else {
                 request = new LastRegisterRequest();
                 request.attempts = 1;
-                throttlingRequests.put(id, request);
-
                 return false;
             }
         }
         finally {
             request.lastTimestamp = now;
+            throttlingRequests.put(id, request);
         }
     }
 
     private void clearThrottling(BareJID jid, JID connectionId) {
-        throttlingRequests.remove(jid.toString());
+        throttlingRequests.invalidate(jid.toString());
 
         String host = extractHostFromConnectionId(connectionId);
         if (StringUtils.isNotEmpty(host)) {
-            throttlingRequests.remove(host);
+            throttlingRequests.invalidate(host);
         }
     }
 

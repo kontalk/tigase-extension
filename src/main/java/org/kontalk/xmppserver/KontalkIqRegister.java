@@ -275,7 +275,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                 SecurityProvider provider = SECURITY_PROVIDERS.get(providerName);
                 if (provider != null) {
                     try {
-                        provider.init(getPrefixedSettings(settings, providerName + "-"));
+                        provider.init(getPrefixedSettings(settings, providerName + "."));
                     }
                     catch (ConfigurationException e) {
                         throw new TigaseDBException("configuration error", e);

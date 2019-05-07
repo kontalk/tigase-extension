@@ -18,8 +18,6 @@
 
 package org.kontalk.xmppserver;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
@@ -37,6 +35,10 @@ import org.kontalk.xmppserver.probe.ProbeManager;
 import org.kontalk.xmppserver.registration.PhoneNumberVerificationProvider;
 import org.kontalk.xmppserver.registration.RegistrationRequest;
 import org.kontalk.xmppserver.registration.VerificationRepository;
+import org.kontalk.xmppserver.registration.security.IPThrottlingSecurityProvider;
+import org.kontalk.xmppserver.registration.security.PhonePrefixThrottlingSecurityProvider;
+import org.kontalk.xmppserver.registration.security.PhoneThrottlingSecurityProvider;
+import org.kontalk.xmppserver.registration.security.SecurityProvider;
 import org.kontalk.xmppserver.util.Utils;
 import org.kontalk.xmppserver.x509.X509Utils;
 import tigase.annotations.TODO;
@@ -71,8 +73,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 /**
@@ -135,16 +135,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
     private static final int PRIVATE_KEY_ID_LEN = 40;
 
-    /** Pattern for connectionId resource: 127.0.0.1_5222_127.0.0.1_38492 */
-    // FIXME this is valid only for IPv4
-    private static final Pattern PATTERN_CLIENT_ADDRESS = Pattern.compile("^.*_.*_(.*)_.*$");
-
-    /** Number of registration attempts to consider to be throttling. After this, timestamps will be checked. */
-    private static final int THROTTLING_ATTEMPTS_THRESHOLD = 3;
-
-    /** Minimum delay for coming out of throttling. This is used after the number of attempts is greater than {@link #THROTTLING_ATTEMPTS_THRESHOLD}. */
-    private static final long THROTTLING_MIN_DELAY = TimeUnit.MINUTES.toMillis(30);
-
     private static final RosterFlat rosterUtil = new RosterFlat();
     private static final SessionManagerHandler loginHandler = new SessionManagerHandler() {
         @Override
@@ -178,6 +168,14 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
     };
 
+    /** Hard-coded for now. */
+    private static Map<String, SecurityProvider> SECURITY_PROVIDERS = new HashMap<>();
+    static {
+        SECURITY_PROVIDERS.put("throttling-ip", new IPThrottlingSecurityProvider());
+        SECURITY_PROVIDERS.put("throttling-phone", new PhoneThrottlingSecurityProvider());
+        SECURITY_PROVIDERS.put("throttling-prefix", new PhonePrefixThrottlingSecurityProvider());
+    }
+
     private Map<String, PhoneNumberVerificationProvider> providers;
     // these two are actually references to instances stored in providers map above
     // if default-provider and fallback-provider are not defined in config, the first and second provider will be used
@@ -185,27 +183,16 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private PhoneNumberVerificationProvider defaultProvider;
     private PhoneNumberVerificationProvider fallbackProvider;
 
+    private List<SecurityProvider> securityProviders;
+
     private long statsRegistrationAttempts;
     private long statsRegisteredUsers;
     private long statsInvalidRegistrations;
     private Map<BareJID, RegistrationRequest> requests;
 
-    /** Stores useful data for detecting registration throttling. */
-    private static final class LastRegisterRequest {
-        /** Number of requests so far. */
-        public int attempts;
-        /** Timestamp of last request. */
-        public long lastTimestamp;
-    }
-
-    private Cache<String, LastRegisterRequest> throttlingRequests;
-
     private JDBCPresenceRepository userRepository = new JDBCPresenceRepository();
 
     private String serviceTermsURL;
-
-    /** True to disable security checks (throttling, etc.). */
-    private boolean disableSecurity;
 
     @Override
     public String id() {
@@ -215,10 +202,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     @Override
     public void init(Map<String, Object> settings) throws TigaseDBException {
         requests = new HashMap<>();
-        throttlingRequests = CacheBuilder.newBuilder()
-                .expireAfterAccess(THROTTLING_MIN_DELAY, TimeUnit.MILLISECONDS)
-                .maximumSize(100000)
-                .build();
 
         // registration providers
         providers = new LinkedHashMap<>();
@@ -284,9 +267,22 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
 
         serviceTermsURL = (String) settings.get("service-terms-url");
 
-        Boolean _disableSecurity = (Boolean) settings.get("disable-security");
-        if (_disableSecurity != null) {
-            disableSecurity = _disableSecurity;
+        // register security providers
+        String[] configSecurityProviders = (String[]) settings.get("security");
+        if (configSecurityProviders != null) {
+            securityProviders = new ArrayList<>();
+            for (String providerName : configSecurityProviders) {
+                SecurityProvider provider = SECURITY_PROVIDERS.get(providerName);
+                if (provider != null) {
+                    try {
+                        provider.init(getPrefixedSettings(settings, providerName + "-"));
+                    }
+                    catch (ConfigurationException e) {
+                        throw new TigaseDBException("configuration error", e);
+                    }
+                    securityProviders.add(provider);
+                }
+            }
         }
 
         // delete expired users once a day
@@ -509,9 +505,6 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
                                     statsRegisteredUsers++;
                                     packet.processedBy(ID);
                                     results.offer(response);
-
-                                    // clear throttling
-                                    clearThrottling(jid, session.getConnectionId());
                                 }
                                 else {
                                     // invalid verification code
@@ -753,7 +746,7 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
     private Packet startVerification(String domain, Packet packet, JID connectionId, BareJID jid, String phone, PhoneNumberVerificationProvider provider)
             throws TigaseDBException, PacketErrorTypeException {
         try {
-            if (!disableSecurity && (isThrottlingPhone(jid) || isThrottlingClient(connectionId))) {
+            if (!isSecurityPass(connectionId, jid, phone, provider)) {
                 throw new VerificationRepository.AlreadyRegisteredException();
             }
 
@@ -798,63 +791,15 @@ public class KontalkIqRegister extends XMPPProcessor implements XMPPProcessorIfc
         }
     }
 
-    /** Returns true if the phone number has been trying to register too many times. */
-    private boolean isThrottlingPhone(BareJID jid) {
-        return isThrottling(jid.toString());
-    }
-
-    private boolean isThrottlingClient(JID connectionId) {
-        String host = extractHostFromConnectionId(connectionId);
-        if (StringUtils.isNotEmpty(host)) {
-            return isThrottling(host);
-        }
-
-        return false;
-    }
-
-    private synchronized boolean isThrottling(String id) {
-        long now = System.currentTimeMillis();
-        LastRegisterRequest request = throttlingRequests.getIfPresent(id);
-        try {
-            if (request != null) {
-                if (request.attempts >= THROTTLING_ATTEMPTS_THRESHOLD) {
-                    return (now - request.lastTimestamp) < THROTTLING_MIN_DELAY;
-                }
-                else {
-                    request.attempts++;
+    private synchronized boolean isSecurityPass(JID connectionId, BareJID jid, String phone, PhoneNumberVerificationProvider provider) {
+        if (securityProviders != null) {
+            for (SecurityProvider securityProvider : securityProviders) {
+                if (!securityProvider.pass(connectionId, jid, phone, provider)) {
                     return false;
                 }
             }
-            else {
-                request = new LastRegisterRequest();
-                request.attempts = 1;
-                return false;
-            }
         }
-        finally {
-            request.lastTimestamp = now;
-            throttlingRequests.put(id, request);
-        }
-    }
-
-    private void clearThrottling(BareJID jid, JID connectionId) {
-        throttlingRequests.invalidate(jid.toString());
-
-        String host = extractHostFromConnectionId(connectionId);
-        if (StringUtils.isNotEmpty(host)) {
-            throttlingRequests.invalidate(host);
-        }
-    }
-
-    private String extractHostFromConnectionId(JID connectionId) {
-        String hostInfo = connectionId.getResource();
-        if (hostInfo != null) {
-            Matcher match = PATTERN_CLIENT_ADDRESS.matcher(hostInfo);
-            if (match.matches() && match.groupCount() > 0) {
-                return match.group(1);
-            }
-        }
-        return null;
+        return true;
     }
 
     private Element prepareSMSResponseForm(String from, PhoneNumberVerificationProvider provider, boolean canFallback) {

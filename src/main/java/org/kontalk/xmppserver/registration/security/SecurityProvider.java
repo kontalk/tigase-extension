@@ -42,9 +42,4 @@ public interface SecurityProvider {
      */
     boolean pass(JID connectionId, BareJID jid, String phone, PhoneNumberVerificationProvider provider);
 
-    /**
-     * Clear a possible bad security status after successful registration.
-     */
-    void clear(JID connectionId, BareJID jid, String phone);
-
 }

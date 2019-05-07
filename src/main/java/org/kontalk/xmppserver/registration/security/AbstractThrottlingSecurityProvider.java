@@ -78,11 +78,6 @@ public abstract class AbstractThrottlingSecurityProvider implements SecurityProv
         return true;
     }
 
-    @Override
-    public void clear(JID connectionId, BareJID jid, String phone) {
-        clearThrottling(getIdentifier(connectionId, jid, phone));
-    }
-
     private synchronized boolean isThrottling(String id) {
         long now = System.currentTimeMillis();
         LastRegisterRequest request = throttlingRequests.getIfPresent(id);
@@ -106,10 +101,6 @@ public abstract class AbstractThrottlingSecurityProvider implements SecurityProv
             request.lastTimestamp = now;
             throttlingRequests.put(id, request);
         }
-    }
-
-    private void clearThrottling(String id) {
-        throttlingRequests.invalidate(id);
     }
 
 }

@@ -22,5 +22,9 @@ public class PGPUtilsTest {
         assertEquals("Example User", uid.getName());
         assertEquals("Test comment", uid.getComment());
         assertEquals("user@example.com", uid.getEmail());
+
+        uid = PGPUtils.parseUserID("user@example.com");
+        assertNotNull(uid);
+        assertEquals("user@example.com", uid.getEmail());
     }
 }

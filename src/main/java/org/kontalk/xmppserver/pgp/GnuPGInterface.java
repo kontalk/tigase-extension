@@ -37,7 +37,7 @@ public class GnuPGInterface {
     private static GnuPGInterface instance;
 
     /** GnuPG executable (must be in PATH). */
-    private static final String GPG_EXEC = "gpg2";
+    private static final String GPG_EXEC = "gpg";
 
     public static GnuPGInterface getInstance() {
         if (instance == null)

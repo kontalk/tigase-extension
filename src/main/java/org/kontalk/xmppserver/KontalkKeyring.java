@@ -25,9 +25,9 @@ import org.kontalk.xmppserver.pgp.GnuPGInterface;
 import org.kontalk.xmppserver.pgp.PGPLocalKeyring;
 import org.kontalk.xmppserver.pgp.PGPUserID;
 import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.util.Utils;
 import tigase.xmpp.BareJID;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -114,7 +114,7 @@ public class KontalkKeyring {
         PGPPublicKey masterKey = PGPUtils.getMasterKey(key);
 
         return masterKey != null && PGPUtils.isRevoked(masterKey) &&
-                Arrays.equals(DatatypeConverter.parseHexBinary(fingerprint), masterKey.getFingerprint());
+                Arrays.equals(Utils.parseHexBinary(fingerprint), masterKey.getFingerprint());
     }
 
     /** Validates the given key for expiration, revocation and signature by the server. */

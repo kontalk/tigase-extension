@@ -26,8 +26,8 @@ import fm.last.commons.lang.units.JedecByteUnit;
 import org.apache.log4j.BasicConfigurator;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.kontalk.xmppserver.util.Utils;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -95,7 +95,7 @@ public class PGPLocalKeyring {
     }
 
     private byte[] fingerprintKey(String s) {
-        return DatatypeConverter.parseHexBinary(s);
+        return Utils.parseHexBinary(s);
     }
 
     private class ShutdownThread extends Thread {

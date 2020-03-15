@@ -49,14 +49,14 @@ public class GnuPGInterface {
     }
 
     private int invoke(String... args) throws IOException {
-        return invoke(null, null, args);
+        return invoke(null, null, null, args);
     }
 
     private int invoke(byte[] standardInput, String... args) throws IOException {
-        return invoke(standardInput, null, args);
+        return invoke(standardInput, null, null, args);
     }
 
-    private int invoke(byte[] standardInput, OutputStream output, String... args) throws IOException {
+    private int invoke(byte[] standardInput, OutputStream output, OutputStream error, String... args) throws IOException {
         try {
             String[] procArgs = new String[args.length + 1];
             procArgs[0] = GPG_EXEC;
@@ -68,6 +68,8 @@ public class GnuPGInterface {
             }
             if (output != null)
                 IOUtils.copy(p.getInputStream(), output);
+            if (error != null)
+                IOUtils.copy(p.getErrorStream(), error);
 
             return p.waitFor();
         }
@@ -93,7 +95,7 @@ public class GnuPGInterface {
     private byte[] exportKey(String keyId) throws IOException, PGPException {
         synchronized (this) {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (invoke(null, output, "--export", keyId) != 0)
+            if (invoke(null, output, null, "--export", keyId) != 0)
                 throw new PGPException("error exporting key");
             return output.toByteArray();
         }
@@ -115,8 +117,13 @@ public class GnuPGInterface {
                 throw new PGPException("invalid key data");
 
             String fingerprint = PGPUtils.getFingerprint(masterKey);
-            if (invoke("--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict", "--sign-key", fingerprint) != 0)
-                throw new PGPException("error signing key");
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ByteArrayOutputStream error = new ByteArrayOutputStream();
+            if (invoke(null, output, error,
+                    "--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict", "--sign-key", fingerprint) != 0)
+                throw new PGPException("error signing key",
+                        new IOException("OUTPUT: " + output.toString() + "\n" +
+                                "ERROR: " + error.toString()));
 
             byte[] signedKey = exportKey(fingerprint);
 
@@ -130,7 +137,7 @@ public class GnuPGInterface {
     public byte[] signData(byte[] data, String signKeyId) throws IOException, PGPException {
         synchronized (this) {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (invoke(data, output, "--yes", "--batch", "--sign", "-u", signKeyId) != 0)
+            if (invoke(data, output, null, "--yes", "--batch", "--sign", "-u", signKeyId) != 0)
                 throw new PGPException("error signing data");
             return output.toByteArray();
         }

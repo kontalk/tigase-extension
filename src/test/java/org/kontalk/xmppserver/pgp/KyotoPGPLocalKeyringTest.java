@@ -1,17 +1,14 @@
 package org.kontalk.xmppserver.pgp;
 
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.InputStream;
 
 import static org.junit.Assert.*;
 
-
-public class PGPLocalKeyringTest {
-    /*
+@Ignore
+public class KyotoPGPLocalKeyringTest {
     private static final String TEST_FILENAME = "keyring";
     private static final String TEST_KEY = "/test.key";
 
@@ -19,7 +16,7 @@ public class PGPLocalKeyringTest {
 
     @Before
     public void setUp() throws Exception {
-        keyring = new PGPLocalKeyring(TEST_FILENAME);
+        keyring = new KyotoPGPLocalKeyring(TEST_FILENAME);
     }
 
     @After
@@ -44,5 +41,4 @@ public class PGPLocalKeyringTest {
         in.close();
         assertNotNull(key);
     }
-    */
 }

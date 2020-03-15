@@ -117,20 +117,21 @@ public class GnuPGInterface {
                 throw new PGPException("invalid key data");
 
             String fingerprint = PGPUtils.getFingerprint(masterKey);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            ByteArrayOutputStream error = new ByteArrayOutputStream();
-            if (invoke(null, output, error,
-                    "--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict", "--sign-key", fingerprint) != 0)
-                throw new PGPException("error signing key",
-                        new IOException("OUTPUT: " + output.toString() + "\n" +
-                                "ERROR: " + error.toString()));
+            try {
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                ByteArrayOutputStream error = new ByteArrayOutputStream();
+                if (invoke(null, output, error,
+                        "--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict", "--sign-key", fingerprint) != 0)
+                    throw new PGPException("error signing key",
+                            new IOException("OUTPUT: " + output.toString() + "\n" +
+                                    "ERROR: " + error.toString()));
 
-            byte[] signedKey = exportKey(fingerprint);
-
-            // delete the imported key
-            deleteKey(fingerprint);
-
-            return signedKey;
+                return exportKey(fingerprint);
+            }
+            finally {
+                // delete the imported key
+                deleteKey(fingerprint);
+            }
         }
     }
 

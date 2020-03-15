@@ -122,7 +122,7 @@ public class GnuPGInterface {
                 ByteArrayOutputStream error = new ByteArrayOutputStream();
                 if (invoke(null, output, error,
                         "--yes", "--batch", "-u", signKeyId, "--ignore-time-conflict",
-                        "--edit-key", fingerprint, "uid", "1", "sign") != 0)
+                        "--edit-key", fingerprint, "uid", "1", "sign", "save") != 0)
                     throw new PGPException("error signing key",
                             new IOException("OUTPUT: " + output.toString() + "\n" +
                                     "ERROR: " + error.toString()));

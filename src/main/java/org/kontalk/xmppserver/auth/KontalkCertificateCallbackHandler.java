@@ -101,6 +101,11 @@ public class KontalkCertificateCallbackHandler extends CertBasedCallbackHandler 
                             return;
                         }
                     }
+                    else {
+                        if (log.isLoggable(Level.FINEST)) {
+                            log.log(Level.FINEST, "No peer certificate, doing nothing");
+                        }
+                    }
                 }
                 else {
                     throw new UnsupportedCallbackException(callbacks[i], "Unrecognized Callback");

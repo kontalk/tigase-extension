@@ -21,10 +21,7 @@ package org.kontalk.xmppserver;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.kontalk.xmppserver.pgp.GnuPGInterface;
-import org.kontalk.xmppserver.pgp.PGPLocalKeyring;
-import org.kontalk.xmppserver.pgp.PGPUserID;
-import org.kontalk.xmppserver.pgp.PGPUtils;
+import org.kontalk.xmppserver.pgp.*;
 import org.kontalk.xmppserver.util.Utils;
 import tigase.xmpp.BareJID;
 
@@ -52,7 +49,7 @@ public class KontalkKeyring {
     /** Use {@link #getInstance(String)} instead. */
     private KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
         this.domain = domain;
-        this.keyring = new PGPLocalKeyring(keyring);
+        this.keyring = new KyotoPGPLocalKeyring(keyring);
 
         // import into GnuPG
         GnuPGInterface.getInstance().importKey(secretPrivateKeyFile);

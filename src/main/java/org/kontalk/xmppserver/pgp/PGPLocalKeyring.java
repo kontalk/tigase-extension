@@ -18,101 +18,24 @@
 
 package org.kontalk.xmppserver.pgp;
 
-import fm.last.commons.kyoto.DbType;
-import fm.last.commons.kyoto.KyotoDb;
-import fm.last.commons.kyoto.factory.KyotoDbBuilder;
-import fm.last.commons.kyoto.factory.Mode;
-import fm.last.commons.lang.units.JedecByteUnit;
-import org.apache.log4j.BasicConfigurator;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.kontalk.xmppserver.util.Utils;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 
 
-public class PGPLocalKeyring {
-    static {
-        BasicConfigurator.configure();
-    }
-
-    private final KyotoDb db;
-
-    public PGPLocalKeyring(String filename) throws IOException {
-        File dbFile = DbType.FILE_HASH.createFile(filename);
-        db = new KyotoDbBuilder(dbFile)
-                .modes(Mode.CREATE, Mode.READ_WRITE)
-                .buckets(100000)
-                .memoryMapSize(5, JedecByteUnit.MEGABYTES)
-                .buildAndOpen();
-        Runtime.getRuntime().addShutdownHook(new ShutdownThread());
-    }
+public interface PGPLocalKeyring {
 
     /** Returns the public key represented by the given fingerprint. */
-    public PGPPublicKeyRing getKey(String fingerprint) throws IOException, PGPException {
-        return getKey(fingerprintKey(fingerprint));
-    }
+    PGPPublicKeyRing getKey(String fingerprint) throws IOException, PGPException;
 
     /** Imports the given key. */
-    public PGPPublicKeyRing importKey(InputStream in) throws IOException, PGPException {
-        return importKey(PGPUtils.readPublicKeyring(in));
-    }
+    PGPPublicKeyRing importKey(InputStream in) throws IOException, PGPException;
 
     /** Imports the given key. */
-    public PGPPublicKeyRing importKey(byte[] data) throws IOException, PGPException {
-        return importKey(PGPUtils.readPublicKeyring(data));
-    }
+    PGPPublicKeyRing importKey(byte[] data) throws IOException, PGPException;
 
-    private PGPPublicKeyRing importKey(PGPPublicKeyRing keyring) throws IOException, PGPException {
-        String fpr = PGPUtils.getFingerprint(keyring);
-        PGPPublicKeyRing newring;
-        PGPPublicKeyRing oldring = getKey(fpr);
-        if (oldring != null) {
-            newring = PGPUtils.merge(oldring, keyring);
-        }
-        else {
-            newring = keyring;
-        }
-
-        db.set(fingerprintKey(fpr), newring.getEncoded());
-        return newring;
-    }
-
-    public void close() throws IOException {
-        db.close();
-    }
-
-    // TODO signKey method?
-
-    private PGPPublicKeyRing getKey(byte[] fingerprint) throws IOException, PGPException {
-        byte[] data = db.get(fingerprint);
-        if (data != null)
-            return PGPUtils.readPublicKeyring(data);
-
-        return null;
-    }
-
-    private byte[] fingerprintKey(String s) {
-        return Utils.parseHexBinary(s);
-    }
-
-    private class ShutdownThread extends Thread {
-
-        ShutdownThread() {
-            super();
-            setName("PGPLocalKeyRingShutdownThread");
-        }
-
-        @Override
-        public void run() {
-            try {
-                db.close();
-            }
-            catch (Exception ignored) {
-            }
-        }
-    }
+    void close() throws IOException;
 
 }

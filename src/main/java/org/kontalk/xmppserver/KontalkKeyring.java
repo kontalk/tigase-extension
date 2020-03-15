@@ -49,7 +49,7 @@ public class KontalkKeyring {
     /** Use {@link #getInstance(String)} instead. */
     private KontalkKeyring(String domain, String secretPrivateKeyFile, String secretPublicKeyFile, String keyring) throws IOException, PGPException {
         this.domain = domain;
-        this.keyring = new KyotoPGPLocalKeyring(keyring);
+        this.keyring = new BerkeleyPGPLocalKeyring(keyring);
 
         // import into GnuPG
         GnuPGInterface.getInstance().importKey(secretPrivateKeyFile);

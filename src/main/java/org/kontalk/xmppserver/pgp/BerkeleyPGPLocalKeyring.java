@@ -31,7 +31,7 @@ import java.io.InputStream;
 public class BerkeleyPGPLocalKeyring implements PGPLocalKeyring {
 
     private final Environment env;
-    private final Database db;
+    final Database db;
 
     public BerkeleyPGPLocalKeyring(String filename) throws IOException {
         EnvironmentConfig envConfig = new EnvironmentConfig();

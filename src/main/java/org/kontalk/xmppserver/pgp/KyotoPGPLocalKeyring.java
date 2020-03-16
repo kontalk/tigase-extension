@@ -20,6 +20,7 @@ package org.kontalk.xmppserver.pgp;
 
 import fm.last.commons.kyoto.DbType;
 import fm.last.commons.kyoto.KyotoDb;
+import fm.last.commons.kyoto.ReadOnlyVisitor;
 import fm.last.commons.kyoto.factory.KyotoDbBuilder;
 import fm.last.commons.kyoto.factory.Mode;
 import fm.last.commons.lang.units.JedecByteUnit;
@@ -38,7 +39,7 @@ public class KyotoPGPLocalKeyring implements PGPLocalKeyring {
         BasicConfigurator.configure();
     }
 
-    private final KyotoDb db;
+    final KyotoDb db;
 
     public KyotoPGPLocalKeyring(String filename) throws IOException {
         File dbFile = DbType.FILE_HASH.createFile(filename);

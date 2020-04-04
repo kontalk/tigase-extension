@@ -30,14 +30,14 @@ import java.util.Map;
  */
 public interface FileUploadProvider {
 
-    public void init(Map<String, Object> props) throws ConfigurationException;
+    void init(Map<String, Object> props) throws ConfigurationException;
 
-    public String getName();
+    String getName();
 
     // for service discovery
-    public String getNode();
-    public String getDescription();
+    String getNode();
+    String getDescription();
 
-    public Element getServiceInfo();
+    Element getServiceInfo();
 
 }

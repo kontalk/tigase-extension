@@ -31,18 +31,18 @@ import tigase.xmpp.BareJID;
  */
 public interface PushProvider {
 
-    public void init(Map<String, Object> props) throws ConfigurationException;
+    void init(Map<String, Object> props) throws ConfigurationException;
 
-    public String getName();
+    String getName();
 
     // for service discovery
-    public String getNode();
-    public String getJidPrefix();
-    public String getDescription();
+    String getNode();
+    String getJidPrefix();
+    String getDescription();
 
-    public void register(BareJID jid, String registrationId);
-    public void unregister(BareJID jid);
+    void register(BareJID jid, String registrationId);
+    void unregister(BareJID jid);
 
-    public void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException;
+    void sendPushNotification(BareJID jid, PushRegistrationInfo info) throws IOException;
 
 }

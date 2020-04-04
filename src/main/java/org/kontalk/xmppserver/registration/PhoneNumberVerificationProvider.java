@@ -33,24 +33,24 @@ import java.util.Map;
 public interface PhoneNumberVerificationProvider {
 
     /** Challenge the user with a verification PIN sent through a SMS or a told through a phone call. */
-    public static final String CHALLENGE_PIN = "pin";
+    String CHALLENGE_PIN = "pin";
     /** Challenge the user with a missed call from a random number and making the user guess the digits. */
-    public static final String CHALLENGE_MISSED_CALL = "missedcall";
+    String CHALLENGE_MISSED_CALL = "missedcall";
     /** Challenge the user with the caller ID presented in a user-initiated call to a given phone number. */
-    public static final String CHALLENGE_CALLER_ID = "callerid";
+    String CHALLENGE_CALLER_ID = "callerid";
 
-    public void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException;
+    void init(Map<String, Object> settings) throws TigaseDBException, ConfigurationException;
 
-    public String getSenderId();
+    String getSenderId();
 
-    public String getAckInstructions();
+    String getAckInstructions();
 
     /**
      * Initiates a verification.
      * @param phoneNumber the phone number being verified
      * @return a request object of some kind that you will give to {@link #endVerification}.
      */
-    public RegistrationRequest startVerification(String domain, String phoneNumber)
+    RegistrationRequest startVerification(String domain, String phoneNumber)
             throws IOException, VerificationRepository.AlreadyRegisteredException, TigaseDBException;
 
     /**
@@ -59,41 +59,41 @@ public interface PhoneNumberVerificationProvider {
      * @param proof the proof of the verification (e.g. verification code)
      * @return true if verification succeded, false otherwise.
      */
-    public boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException;
+    boolean endVerification(XMPPResourceConnection session, RegistrationRequest request, String proof) throws IOException, TigaseDBException;
 
     /** Returns true if this provider supports this kind if registration request. */
-    public boolean supportsRequest(RegistrationRequest request);
+    boolean supportsRequest(RegistrationRequest request);
 
     /** The challenge type implemented by this provider. */
-    public String getChallengeType();
+    String getChallengeType();
 
     /** The brand vector image logo for this provider, if any. */
-    public default String getBrandImageVector() {
+    default String getBrandImageVector() {
         return null;
     }
 
     /** The brand small image logo for this provider, if any. */
-    public default String getBrandImageSmall() {
+    default String getBrandImageSmall() {
         return null;
     }
 
     /** The brand medium image logo for this provider, if any. */
-    public default String getBrandImageMedium() {
+    default String getBrandImageMedium() {
         return null;
     }
 
     /** The brand large image logo for this provider, if any. */
-    public default String getBrandImageLarge() {
+    default String getBrandImageLarge() {
         return null;
     }
 
     /** The brand HD image logo for this provider, if any. */
-    public default String getBrandImageHighDef() {
+    default String getBrandImageHighDef() {
         return null;
     }
 
     /** The brand link the image logo will point to, if any. */
-    public default String getBrandLink() {
+    default String getBrandLink() {
         return null;
     }
 

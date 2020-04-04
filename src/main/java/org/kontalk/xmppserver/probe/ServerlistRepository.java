@@ -31,15 +31,15 @@ import java.util.Map;
  */
 public interface ServerlistRepository {
 
-    public void init(Map<String, Object> props) throws DBInitException;
+    void init(Map<String, Object> props) throws DBInitException;
 
-    public void reload() throws TigaseDBException;
+    void reload() throws TigaseDBException;
 
-    public List<ServerInfo> getList();
+    List<ServerInfo> getList();
 
-    public boolean isNetworkDomain(String domain);
+    boolean isNetworkDomain(String domain);
 
-    public static class ServerInfo {
+    class ServerInfo {
         private String fingerprint;
         private String host;
         private boolean enabled;

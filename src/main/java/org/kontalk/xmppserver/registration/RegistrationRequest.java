@@ -9,6 +9,6 @@ package org.kontalk.xmppserver.registration;
 public interface RegistrationRequest {
 
     /** Returns the sender id of the call/SMS/whatever. */
-    public String getSenderId();
+    String getSenderId();
 
 }

@@ -30,6 +30,6 @@ import java.util.List;
  */
 public interface NetworkContext extends Context {
 
-    public List<ServerlistRepository.ServerInfo> getServerList();
+    List<ServerlistRepository.ServerInfo> getServerList();
 
 }

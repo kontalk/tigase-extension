@@ -34,7 +34,7 @@ import java.util.Map;
  * @see <a href="https://jmp.chat/">JMP - JIDs for Messaging with Phones</a>
  * @author Daniele Ricci
  */
-public class JMPVerifyProvider extends BrandedSMSVerificationProvider {
+public class JMPVerifyProvider extends AbstractSMSVerificationProvider {
 
     private static final String ACK_INSTRUCTIONS = "A SMS containing a verification code will be sent to the phone number you provided.";
 

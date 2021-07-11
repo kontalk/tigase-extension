@@ -54,6 +54,7 @@ import org.json.simple.JSONValue;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import javax.net.ssl.*;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
@@ -62,6 +63,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -673,6 +678,37 @@ public class Sender {
    */
   protected HttpURLConnection getConnection(String url) throws IOException {
     HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+    // FIXME remove this as soon as possible!!!
+    try {
+      ((HttpsURLConnection) conn).setHostnameVerifier(new HostnameVerifier() {
+        @Override
+        public boolean verify(String s, SSLSession sslSession) {
+          return true;
+        }
+      });
+      SSLContext sc = SSLContext.getInstance("SSL");
+      TrustManager[] trustEverything = new TrustManager[]{new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+          return new X509Certificate[0];
+        }
+      }};
+      sc.init(null, trustEverything, null);
+      ((HttpsURLConnection) conn).setSSLSocketFactory(sc.getSocketFactory());
+    }
+    catch (ClassCastException | NoSuchAlgorithmException | KeyManagementException e) {
+      if (!(e instanceof ClassCastException)) {
+        logger.log(Level.WARNING, "Error setting up GCM connection", e);
+      }
+    }
     conn.setConnectTimeout(connectTimeout);
     conn.setReadTimeout(readTimeout);
     return conn;
